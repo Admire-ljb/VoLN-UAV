@@ -1,0 +1,33 @@
+# Baseline defaults with updated library-functionality naming.
+seed: 7
+benchmark_root: /path/to/real/voln_benchmark
+train_records: records/train.jsonl
+val_records: records/val.jsonl
+semantic_bank: semantic_bank/categories.txt
+adapter_ckpt: work_dirs/adapter_library_update/adapter_last.pt
+work_dir: work_dirs/planner_library_update
+batch_size: 32
+num_workers: 4
+epochs: 20
+lr: 0.0003
+weight_decay: 0.0001
+log_every: 20
+success_radius: 4.0
+model:
+  dino_backbone: hf:facebook/dinov2-base
+  clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
+  text_encoder: open_clip:ViT-B-32
+  embed_dim: 512
+  adapter_hidden: 1024
+  image_size: 224
+  top_k_semantic: 8
+  hidden_dim: 512
+  num_heads: 8
+  num_layers: 6
+  lora_rank: 16
+  horizon: 8
+  memory_len: 8
+loss:
+  waypoint_l1_weight: 1.0
+  anchor_weight: 0.5
+  stop_weight: 0.1

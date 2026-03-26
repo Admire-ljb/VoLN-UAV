@@ -1,0 +1,47 @@
+seed: 7
+source_root: data/toy_source
+output_root: data/toy_benchmark
+horizon: 5
+scene_manifest: scenes.jsonl
+preset_routes_dir: preset_routes
+custom_routes_dir: custom_routes
+splits:
+  train: 0.6
+  val: 0.2
+  test: 0.2
+dedup:
+  start_threshold: 4.0
+  goal_threshold: 4.0
+goal_interface:
+  num_terminal_views: 3
+  num_subgoals: 4
+  num_beacons: 3
+beacons:
+  decision_radius: 0.7
+  background_per_scene: 6
+  task_beacons_per_route: 3
+  min_separation_steps: 4
+  task_category_allowlist:
+    - road-sign
+    - turn-left
+    - turn-right
+    - junction
+difficulty:
+  easy_lt: 30.0
+  normal_lt: 45.0
+semantic_bank:
+  categories:
+    - vehicle
+    - human
+    - entrance
+    - road-sign
+    - beacon-blue
+    - beacon-red
+    - beacon-yellow
+    - industrial-corridor
+    - forest-trail
+    - urban-canyon
+    - tunnel
+    - junction
+    - turn-left
+    - turn-right

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voln-uav"
+version = "0.1.0"
+description = "Practical VoLN-UAV benchmark and training scaffold"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "pillow>=10.0",
+  "pyyaml>=6.0",
+  "tqdm>=4.66",
+  "torch>=2.0",
+]
+
+[project.optional-dependencies]
+real = [
+  "timm>=0.9.12",
+  "open-clip-torch>=2.24.0",
+  "transformers>=4.40.0",
+  "peft>=0.10.0",
+  "openai>=1.30.0",
+  "airsim>=1.8.1",
+]
+
+dev = [
+  "pytest>=8.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

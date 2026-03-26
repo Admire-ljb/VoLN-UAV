@@ -1,0 +1,53 @@
+# Baseline benchmark defaults with updated library-functionality naming.
+seed: 7
+source_root: /path/to/real/voln_source
+output_root: /path/to/real/voln_benchmark
+horizon: 8
+scene_manifest: scenes.jsonl
+preset_routes_dir: preset_routes
+custom_routes_dir: custom_routes
+splits:
+  train: 0.75
+  val: 0.125
+  test: 0.125
+dedup:
+  start_threshold: 20.0
+  goal_threshold: 20.0
+goal_interface:
+  num_terminal_views: 3
+  num_subgoals: 4
+  num_beacons: 4
+beacons:
+  decision_radius: 6.0
+  background_per_scene: 20
+  task_beacons_per_route: 4
+  min_separation_steps: 8
+  task_category_allowlist:
+    - road-sign
+    - turn-left
+    - turn-right
+    - junction
+    - ascend
+    - descend
+difficulty:
+  easy_lt: 300.0
+  normal_lt: 450.0
+semantic_bank:
+  categories:
+    - vehicle
+    - human
+    - entrance
+    - tunnel
+    - industrial-corridor
+    - forest-trail
+    - urban-canyon
+    - road-sign
+    - beacon-red
+    - beacon-blue
+    - beacon-yellow
+    - beacon-green
+    - junction
+    - turn-left
+    - turn-right
+    - ascend
+    - descend
