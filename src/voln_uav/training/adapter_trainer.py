@@ -35,9 +35,14 @@ class AdapterTrainer:
         )
         self.dino = build_image_encoder(model_cfg["dino_backbone"], out_dim=self.embed_dim, image_size=int(model_cfg.get("image_size", 64))).to(self.device)
         self.teacher = build_image_encoder(model_cfg["clip_image_encoder"], out_dim=self.embed_dim, image_size=int(model_cfg.get("image_size", 64))).to(self.device)
+        self.dino.eval()
+        self.teacher.eval()
+        for module in (self.dino, self.teacher):
+            for p in module.parameters():
+                p.requires_grad = False
         self.adapter = DINOToCLIPAdapter(
             in_dim=self.embed_dim,
-            hidden_dim=int(model_cfg["adapter_hidden"]),
+            hidden_dim=int(model_cfg.get("adapter_hidden", 0)),
             out_dim=self.embed_dim,
         ).to(self.device)
         self.optimizer = torch.optim.AdamW(

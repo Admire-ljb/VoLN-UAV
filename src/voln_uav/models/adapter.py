@@ -10,11 +10,19 @@ from torch import nn
 class DINOToCLIPAdapter(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, out_dim),
-        )
+        # Follow the DINOv3-CLIP adapter design: optional bottleneck MLP + LayerNorm.
+        if hidden_dim > 0:
+            self.net = nn.Sequential(
+                nn.Linear(in_dim, hidden_dim),
+                nn.GELU(),
+                nn.Linear(hidden_dim, out_dim),
+                nn.LayerNorm(out_dim),
+            )
+        else:
+            self.net = nn.Sequential(
+                nn.Linear(in_dim, out_dim),
+                nn.LayerNorm(out_dim),
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = self.net(x)

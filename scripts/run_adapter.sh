@@ -2,5 +2,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH="${PYTHONPATH:-}:src"
-CONFIG=${1:-configs/eval_library_update.yaml}
-python -m voln_uav.cli.eval_offline --config "$CONFIG"
+CONFIG=${1:-configs/dagger_library_update.yaml}
+python -m voln_uav.cli.run_dagger --config "$CONFIG"
