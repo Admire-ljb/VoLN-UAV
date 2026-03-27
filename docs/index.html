@@ -98,6 +98,19 @@
       max-width: 60ch;
     }
 
+
+    h1, h2, h3, .subtitle, .btn {
+      text-wrap: balance;
+    }
+    p, li, .stat span, .caption {
+      text-wrap: pretty;
+    }
+
+    .overview-intro,
+    .overview-abstract {
+      max-width: 90ch;
+    }
+
     .button-row {
       display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px;
     }
@@ -571,7 +584,7 @@
       <div class="section-head">
         <div>
           <h2>Overview</h2>
-          <p>
+          <p class="overview-intro">
             This project studies vision-only, goal-driven UAV navigation. The paper introduces the VoLN paradigm, the VoLN-UAV benchmark, and an initial method based on DINO→CLIP visual-semantic alignment and LoRA-based trajectory planning.
           </p>
         </div>
@@ -603,7 +616,7 @@
 
       <div class="card" style="margin-top:18px;">
         <h3>Paper Abstract</h3>
-        <p>
+        <p class="overview-abstract">
           VLN has progressed rapidly in embodied intelligence, but existing UAV navigation frameworks often rely heavily on text instructions, which may implicitly contain privileged information such as global direction, topology, or metric distance.
           VoLN introduces a new paradigm that removes episode-level text instructions: navigation intent is expressed entirely through visual signals, and text tokens, global maps, GPS, and shortest-path information are not accessible during execution.
           To support this setting, the paper builds the VoLN-UAV benchmark and presents an initial method that combines visual embeddings, semantic signals, and trajectory generation modules.
@@ -837,27 +850,16 @@
       <div class="section-head">
         <div>
           <h2>Demo</h2>
-          <p>As requested, the demo video and interactive content are kept as placeholders for now. You can later replace the links or embed an iframe directly.</p>
+          <p>The demo section currently keeps only a video placeholder. You can replace it later with a YouTube, Bilibili, or MP4 embed.</p>
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="demo-box">
-            <div>
-              <span>Placeholder</span>
-              <h3>Demo Video</h3>
-              <p>You can later embed a YouTube, Bilibili, or MP4 demo video here.</p>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="demo-box">
-            <div>
-              <span>Placeholder</span>
-              <h3>Interactive Showcase</h3>
-              <p>You can later connect trajectory replay, AirSim visualization, or a Hugging Face Space here.</p>
-            </div>
+      <div class="card">
+        <div class="demo-box">
+          <div>
+            <span>Placeholder</span>
+            <h3>Demo Video</h3>
+            <p>You can later embed a YouTube, Bilibili, or MP4 demo video here.</p>
           </div>
         </div>
       </div>
