@@ -12,6 +12,9 @@
 
 This repository provides the benchmark construction pipeline, training code, offline evaluation, and online data collection tools for VoLN-UAV.
 
+- 🤗 VoLN-UAV-ENV (Environment assets, Hugging Face): https://huggingface.co/datasets/Louj/VoLN-UAV-ENV/tree/main
+- 🤗 VoLN-UAV-Dataset (Navigation data): coming soon
+
 Main entry points:
 
 - benchmark construction from source scenes and routes
