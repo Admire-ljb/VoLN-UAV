@@ -98,6 +98,19 @@
       max-width: 60ch;
     }
 
+
+    h1, h2, h3, .subtitle, .btn {
+      text-wrap: balance;
+    }
+    p, li, .stat span, .caption {
+      text-wrap: pretty;
+    }
+
+    .overview-intro,
+    .overview-abstract {
+      max-width: 90ch;
+    }
+
     .button-row {
       display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px;
     }
@@ -176,8 +189,14 @@
       max-width: 72ch;
     }
 
+
+    #benchmark .section-head p {
+      max-width: none;
+    }
+
     .grid-2 {
       display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;
+      align-items: stretch;
     }
     .grid-3 {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
@@ -220,6 +239,23 @@
     .figure-card .figure-body p {
       margin: 8px 0 0;
       font-size: 14px;
+    }
+
+
+    #method .grid-2 {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    }
+    #method .figure-card,
+    #method .method-card {
+      height: 100%;
+    }
+    #method .figure-card .figure-body {
+      padding: 20px 22px 24px;
+    }
+    #method .method-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
 
     .kpi {
@@ -507,7 +543,6 @@
           <a href="#method">Method</a>
           <a href="#results">Results</a>
           <a href="#demo">Demo</a>
-          <a href="#resources">Resources</a>
           <a href="#citation">Citation</a>
         </div>
         <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark mode">
@@ -572,7 +607,7 @@
       <div class="section-head">
         <div>
           <h2>Overview</h2>
-          <p>
+          <p class="overview-intro">
             This project studies vision-only, goal-driven UAV navigation. The paper introduces the VoLN paradigm, the VoLN-UAV benchmark, and an initial method based on DINO→CLIP visual-semantic alignment and LoRA-based trajectory planning.
           </p>
         </div>
@@ -604,18 +639,12 @@
 
       <div class="card" style="margin-top:18px;">
         <h3>Paper Abstract</h3>
-        <p>
-          VLN has progressed rapidly in embodied intelligence, but existing UAV navigation frameworks often rely heavily on text instructions, which may implicitly contain privileged information such as global direction, topology, or metric distance.
-          VoLN introduces a new paradigm that removes episode-level text instructions: navigation intent is expressed entirely through visual signals, and text tokens, global maps, GPS, and shortest-path information are not accessible during execution.
-          To support this setting, the paper builds the VoLN-UAV benchmark and presents an initial method that combines visual embeddings, semantic signals, and trajectory generation modules.
+        <p class="overview-abstract">
+          VLN has made substantial progress in embodied intelligence, enabling agents to follow natural-language instructions in complex environments. However, existing UAV navigation frameworks typically rely heavily on textual instructions, which often implicitly encode privileged information such as global orientation, topological structure, or metric distance.
+          In realistic deployments, especially under GPS-denied, infrastructure-degraded, or safety-critical conditions, such assumptions are often unavailable. In this paper, we propose Vision-only Language-Model-based Navigation (VoLN), which removes episode-level textual instructions and instead expresses navigation intent entirely through visual signals.
+          In VoLN, navigation goals are specified via reference images, semantic beacons, or visually embedded cues, while the agent is forbidden from accessing text tokens, global maps, GPS signals, or shortest-path information during execution. To support this setting, we introduce the VoLN-UAV benchmark for long-horizon goal-directed navigation under realistic perceptual constraints.
+          As an initial instantiation, we propose a vision-driven method that combines visual embeddings, semantic signals, and trajectory generation modules, and further introduce a visual-semantic alignment strategy that maps visual features into a structured semantic space.
         </p>
-        <div style="margin-top:8px;">
-          <span class="tag">Reference Images</span>
-          <span class="tag">Semantic Beacons</span>
-          <span class="tag">Embedded Visual Cues</span>
-          <span class="tag">Long-horizon Navigation</span>
-          <span class="tag">Closed-loop UAV Control</span>
-        </div>
       </div>
     </div>
   </section>
@@ -697,7 +726,7 @@
           </div>
         </article>
 
-        <div class="card">
+        <div class="card method-card">
           <h3>Core Design</h3>
           <ul>
             <li><strong>Vision tokenization via semantic alignment:</strong> Encode observations into aligned visual-semantic embeddings.</li>
@@ -731,24 +760,72 @@
         <div>
           <h2>Results</h2>
           <p>
-            The paper shows that VoLN-MLLM outperforms Random, Seq2Seq, CMA, and LAG on the unseen split overall, while also revealing that long-term memory, cross-view re-identification, and closed-loop stability remain core challenges.
+            This section keeps only the main comparison results and the ablation results. All values are taken from Table 1 and Table 3 in <code>docs/VoLN-UAV-paper.pdf</code>.
           </p>
         </div>
       </div>
 
-      <div class="grid-3">
-        <div class="card">
-          <h3>Test-Unseen · Easy</h3>
-          <p><strong>NE</strong> 97.1 m · <strong>SR</strong> 7.4% · <strong>OSR</strong> 14.6% · <strong>nDTW</strong> 53.1 · <strong>SPL</strong> 5.7</p>
+      <div class="card" style="margin-top:18px;">
+        <h3>Main Results · Test-Unseen (TU)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>NE (E/N/H) ↓</th>
+                <th>SR (E/N/H) ↑</th>
+                <th>OSR (E/N/H) ↑</th>
+                <th>nDTW (E/N/H) ↑</th>
+                <th>SPL (E/N/H) ↑</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Random</td>
+                <td>170.1 / 310.4 / 395.2</td>
+                <td>0.4 / 0.0 / 0.0</td>
+                <td>1.4 / 0.6 / 0.2</td>
+                <td>30.1 / – / –</td>
+                <td>0.3 / – / –</td>
+              </tr>
+              <tr>
+                <td>Seq2Seq <sup>[33]</sup></td>
+                <td>208.6 / 254.8 / 309.9</td>
+                <td>1.0 / 0.4 / 0.1</td>
+                <td>4.8 / 2.5 / 0.9</td>
+                <td>28.9 / 21.4 / 13.0</td>
+                <td>0.7 / 0.3 / 0.0</td>
+              </tr>
+              <tr>
+                <td>CMA <sup>[34]</sup></td>
+                <td>174.5 / 216.8 / 266.1</td>
+                <td>1.6 / 0.8 / 0.2</td>
+                <td>6.5 / 3.9 / 1.7</td>
+                <td>33.2 / 26.4 / 18.5</td>
+                <td>1.1 / 0.6 / 0.1</td>
+              </tr>
+              <tr>
+                <td>LAG <sup>[16]</sup></td>
+                <td>122.4 / 158.3 / 206.7</td>
+                <td>2.3 / 1.2 / 0.4</td>
+                <td>6.4 / 3.8 / 1.7</td>
+                <td>28.1 / 20.5 / 14.0</td>
+                <td>1.5 / 0.7 / 0.2</td>
+              </tr>
+              <tr>
+                <td><strong>VoLN-MLLM (Ours)</strong></td>
+                <td><strong>97.1 / 131.4 / 176.8</strong></td>
+                <td><strong>7.4 / 4.5 / 1.8</strong></td>
+                <td><strong>14.6 / 10.1 / 4.5</strong></td>
+                <td><strong>53.1 / 41.2 / 28.0</strong></td>
+                <td><strong>5.7 / 3.2 / 1.3</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="card">
-          <h3>Test-Unseen · Normal</h3>
-          <p><strong>NE</strong> 131.4 m · <strong>SR</strong> 4.5% · <strong>OSR</strong> 10.1% · <strong>nDTW</strong> 41.2 · <strong>SPL</strong> 3.2</p>
-        </div>
-        <div class="card">
-          <h3>Test-Unseen · Hard</h3>
-          <p><strong>NE</strong> 176.8 m · <strong>SR</strong> 1.8% · <strong>OSR</strong> 4.5% · <strong>nDTW</strong> 28.0 · <strong>SPL</strong> 1.3</p>
-        </div>
+        <p class="muted" style="margin-top:12px;">
+          Baseline definitions and references are consistent with the paper: Seq2Seq [33], CMA [34], and LAG [16].
+        </p>
       </div>
 
       <div class="card" style="margin-top:18px;">
@@ -811,24 +888,6 @@
             </tbody>
           </table>
         </div>
-        <p class="muted" style="margin-top:12px;">
-          The ablation results show that both the DINO→CLIP alignment module and LoRA task adaptation contribute significantly to navigation quality and execution stability.
-        </p>
-      </div>
-
-      <div class="grid-3" style="margin-top:18px;">
-        <div class="card">
-          <h3>Runtime · Easy</h3>
-          <p><strong>CT</strong> 1.31 ± 0.18 s / P95 1.64 · <strong>EER</strong> 0.4%</p>
-        </div>
-        <div class="card">
-          <h3>Runtime · Normal</h3>
-          <p><strong>CT</strong> 1.42 ± 0.20 s / P95 1.78 · <strong>EER</strong> 0.9%</p>
-        </div>
-        <div class="card">
-          <h3>Runtime · Hard</h3>
-          <p><strong>CT</strong> 1.63 ± 0.28 s / P95 2.06 · <strong>EER</strong> 2.8%</p>
-        </div>
       </div>
     </div>
   </section>
@@ -838,60 +897,17 @@
       <div class="section-head">
         <div>
           <h2>Demo</h2>
-          <p>As requested, the demo video and interactive content are kept as placeholders for now. You can later replace the links or embed an iframe directly.</p>
+          <p>The demo section currently keeps only a video placeholder. You can replace it later with a YouTube, Bilibili, or MP4 embed.</p>
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="demo-box">
-            <div>
-              <span>Placeholder</span>
-              <h3>Demo Video</h3>
-              <p>You can later embed a YouTube, Bilibili, or MP4 demo video here.</p>
-            </div>
+      <div class="card">
+        <div class="demo-box">
+          <div>
+            <span>Placeholder</span>
+            <h3>Demo Video</h3>
+            <p>You can later embed a YouTube, Bilibili, or MP4 demo video here.</p>
           </div>
-        </div>
-        <div class="card">
-          <div class="demo-box">
-            <div>
-              <span>Placeholder</span>
-              <h3>Interactive Showcase</h3>
-              <p>You can later connect trajectory replay, AirSim visualization, or a Hugging Face Space here.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="resources">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>Resources</h2>
-          <p>Common academic resource entries are already reserved on this project page, so you can replace the links later directly.</p>
-        </div>
-      </div>
-
-      <div class="grid-3">
-        <div class="card resource-card">
-          <h3>Code</h3>
-          <p>Official code repository entry.</p>
-          <a class="inline" href="https://github.com/Admire-ljb/VoLN-UAV" target="_blank" rel="noopener">Open GitHub ↗</a>
-          <p class="muted" style="margin-top:10px; word-break: break-all;">https://github.com/Admire-ljb/VoLN-UAV</p>
-        </div>
-        <div class="card resource-card">
-          <h3>Paper</h3>
-          <p>The PDF file is already linked on this page and can be opened or downloaded directly.</p>
-          <a class="inline" href="./VoLN-UAV-paper.pdf" target="_blank" rel="noopener">Open Paper PDF ↗</a>
-          <p class="muted" style="margin-top:10px; word-break: break-all;">./VoLN-UAV-paper.pdf</p>
-        </div>
-        <div class="card resource-card">
-          <h3>Hugging Face</h3>
-          <p>This slot is reserved for future release and can be replaced with a model, dataset, or Space page.</p>
-          <div class="tag">TBA</div>
-          <p class="muted" style="margin-top:10px;">Replace the button href once the final link is available.</p>
         </div>
       </div>
     </div>
@@ -918,13 +934,6 @@
     </div>
   </section>
 
-  <footer class="footer">
-    <div class="wrap">
-      <div class="foot-card">
-        This page is ready to be used as a GitHub Pages / static website homepage. You only need to add: 1) the Hugging Face link, 2) the video link, 3) the final authors and BibTeX, and 4) any download entry or visualization demo if needed.
-      </div>
-    </div>
-  </footer>
 
   <script>
     const btn = document.getElementById('copyBibtex');
