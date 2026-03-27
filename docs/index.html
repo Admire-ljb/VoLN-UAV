@@ -191,6 +191,7 @@
 
     .grid-2 {
       display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;
+      align-items: stretch;
     }
     .grid-3 {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
@@ -233,6 +234,23 @@
     .figure-card .figure-body p {
       margin: 8px 0 0;
       font-size: 14px;
+    }
+
+
+    #method .grid-2 {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    }
+    #method .figure-card,
+    #method .method-card {
+      height: 100%;
+    }
+    #method .figure-card .figure-body {
+      padding: 20px 22px 24px;
+    }
+    #method .method-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
 
     .kpi {
@@ -622,13 +640,6 @@
           In VoLN, navigation goals are specified via reference images, semantic beacons, or visually embedded cues, while the agent is forbidden from accessing text tokens, global maps, GPS signals, or shortest-path information during execution. To support this setting, we introduce the VoLN-UAV benchmark for long-horizon goal-directed navigation under realistic perceptual constraints.
           As an initial instantiation, we propose a vision-driven method that combines visual embeddings, semantic signals, and trajectory generation modules, and further introduce a visual-semantic alignment strategy that maps visual features into a structured semantic space.
         </p>
-        <div style="margin-top:8px;">
-          <span class="tag">Reference Images</span>
-          <span class="tag">Semantic Beacons</span>
-          <span class="tag">Embedded Visual Cues</span>
-          <span class="tag">Long-horizon Navigation</span>
-          <span class="tag">Closed-loop UAV Control</span>
-        </div>
       </div>
     </div>
   </section>
@@ -710,7 +721,7 @@
           </div>
         </article>
 
-        <div class="card">
+        <div class="card method-card">
           <h3>Core Design</h3>
           <ul>
             <li><strong>Vision tokenization via semantic alignment:</strong> Encode observations into aligned visual-semantic embeddings.</li>
