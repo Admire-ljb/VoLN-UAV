@@ -129,6 +129,17 @@
       height: 16px;
       flex: 0 0 16px;
     }
+    .btn .icon-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.16);
+      flex: 0 0 24px;
+    }
     .btn:hover { transform: translateY(-1px); background: rgba(255,255,255,.09); }
     .btn.primary {
       background: linear-gradient(135deg, rgba(124,199,255,.22), rgba(140,240,200,.16));
@@ -571,15 +582,19 @@
 
         <div class="button-row">
           <a class="btn primary" href="./VoLN-UAV-paper.pdf" target="_blank" rel="noopener">
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M6 2h8l6 6v13a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 1.5V9h5.5L13 3.5zM8 13h8v1.8H8V13zm0 3.6h8v1.8H8v-1.8z"/>
-            </svg>
+            <span class="icon-badge" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7.8 15.8h1.7c1.3 0 2.2-.8 2.2-2s-.9-2-2.2-2H7.8v4zm1.2-1v-2h.5c.7 0 1.1.4 1.1 1s-.4 1-1.1 1H9zm4-3v4h1.1v-1.2h.7c1.1 0 1.9-.6 1.9-1.7s-.8-1.7-1.9-1.7H13zm1.1 1v1h.6c.5 0 .8-.2.8-.5s-.3-.5-.8-.5h-.6zm3.1-1v4h2.8v-1h-1.7v-.6h1.4v-1h-1.4v-.5h1.7v-1h-2.8z"/>
+              </svg>
+            </span>
             Paper PDF
           </a>
           <a class="btn" href="https://github.com/Admire-ljb/VoLN-UAV" target="_blank" rel="noopener">
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.61-3.37-1.18-3.37-1.18-.45-1.14-1.1-1.44-1.1-1.44-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.32 1.08 2.89.83.09-.65.35-1.08.64-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.1.39-2 1.03-2.7-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.03a9.5 9.5 0 0 1 5 0c1.9-1.3 2.74-1.03 2.74-1.03.56 1.37.21 2.39.1 2.64.65.7 1.03 1.6 1.03 2.7 0 3.85-2.35 4.7-4.58 4.95.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/>
-            </svg>
+            <span class="icon-badge" aria-hidden="true">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.61-3.37-1.18-3.37-1.18-.45-1.14-1.1-1.44-1.1-1.44-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.32 1.08 2.89.83.09-.65.35-1.08.64-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.1.39-2 1.03-2.7-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.03a9.5 9.5 0 0 1 5 0c1.9-1.3 2.74-1.03 2.74-1.03.56 1.37.21 2.39.1 2.64.65.7 1.03 1.6 1.03 2.7 0 3.85-2.35 4.7-4.58 4.95.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/>
+              </svg>
+            </span>
             GitHub
           </a>
           <a class="btn" href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV/tree/main" target="_blank" rel="noopener">🤗 HF · ENV</a>
