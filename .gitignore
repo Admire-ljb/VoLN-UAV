@@ -6,3 +6,6 @@ __pycache__/
 work_dirs/
 data/toy_source/
 data/toy_benchmark/
+VoLN-UAV-Dataset-release*/
+VoLN-UAV-Benchmark/
+*.zip

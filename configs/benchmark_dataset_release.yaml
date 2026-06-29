@@ -1,0 +1,50 @@
+seed: 7
+source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release/source
+output_root: D:/VoLN_dataset/VoLN-UAV-Benchmark
+scene_manifest: scenes.jsonl
+preset_routes_dir: preset_routes
+custom_routes_dir: custom_routes
+horizon: 6
+
+splits:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+
+difficulty:
+  easy_lt: 300.0
+  normal_lt: 450.0
+
+dedup:
+  start_threshold: 1.0
+  goal_threshold: 1.0
+
+goal_interface:
+  num_terminal_views: 3
+  num_subgoals: 4
+  num_beacons: 2
+
+beacons:
+  task_beacons_per_route: 2
+  background_per_scene: 3
+  min_separation_steps: 4
+  task_category_allowlist:
+    - road-sign
+    - turn-left
+    - turn-right
+    - junction
+
+semantic_bank:
+  categories:
+    - beacon-blue
+    - beacon-red
+    - beacon-yellow
+    - beacon-green
+    - road-sign
+    - junction
+    - urban-canyon
+    - forest-trail
+    - turn-left
+    - turn-right
+    - industrial-corridor
+    - tunnel

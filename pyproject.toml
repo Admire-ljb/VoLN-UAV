@@ -30,6 +30,10 @@ dev = [
   "pytest>=8.0.0",
 ]
 
+[project.scripts]
+voln-uav-build-benchmark = "voln_uav.cli.build_benchmark:main"
+voln-uav-prepare-dataset = "voln_uav.cli.prepare_dataset_release:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
