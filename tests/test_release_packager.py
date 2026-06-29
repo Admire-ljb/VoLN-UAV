@@ -14,11 +14,11 @@ def _write_frame(path):
 
 
 def test_prepare_dataset_release_index_mode(tmp_path):
-    easy = tmp_path / "VoLN-simple"
-    normal = tmp_path / "VoLN-normal"
-    hard = tmp_path / "VoLN-hard"
+    source_a = tmp_path / "source-a"
+    source_b = tmp_path / "source-b"
+    source_c = tmp_path / "source-c"
 
-    ep = easy / "BattlefieldKitDesert" / "simple_001"
+    ep = source_a / "BattlefieldKitDesert" / "route_001"
     _write_json(
         ep / "log" / "000001.json",
         {
@@ -50,7 +50,7 @@ def test_prepare_dataset_release_index_mode(tmp_path):
     _write_frame(ep / "FrontCamera" / "000001.png")
     _write_frame(ep / "FrontCamera" / "000002.png")
 
-    normal_ep = normal / "BrushifyUrban" / "normal_001"
+    normal_ep = source_b / "BrushifyUrban" / "route_001"
     _write_json(
         normal_ep / "log" / "000005.json",
         {
@@ -78,16 +78,14 @@ def test_prepare_dataset_release_index_mode(tmp_path):
     _write_frame(normal_ep / "FrontCamera" / "000005.png")
     _write_frame(normal_ep / "FrontCamera" / "000010.png")
 
-    hard_ep = hard / "hard1" / "front_camera"
+    hard_ep = source_c / "route_without_metadata" / "front_camera"
     _write_frame(hard_ep / "frame_00001.png")
     _write_frame(hard_ep / "frame_00002.png")
 
     out_root = tmp_path / "release"
     zip_path = tmp_path / "release.zip"
     summary = prepare_dataset_release(
-        easy_root=easy,
-        normal_root=normal,
-        hard_root=hard,
+        source_roots=[source_a, source_b, source_c],
         out_root=out_root,
         dataset_url="https://huggingface.co/datasets/Louj/VoLN-UAV-Dataset",
         env_url="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV",
@@ -105,4 +103,4 @@ def test_prepare_dataset_release_index_mode(tmp_path):
     route = json.loads(routes[0].read_text(encoding="utf-8"))
     assert route["states"][0]["image"]
     skipped = (out_root / "metadata" / "skipped.jsonl").read_text(encoding="utf-8")
-    assert "cannot classify difficulty by reference trajectory length" in skipped
+    assert "incomplete trajectory metadata" in skipped

@@ -13,9 +13,15 @@ DEFAULT_DATASET_URL = "https://huggingface.co/datasets/Louj/VoLN-UAV-Dataset"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare the VoLN-UAV dataset release package.")
-    parser.add_argument("--easy-root", required=True, help="Path to VoLN-simple or the Easy raw-data root.")
-    parser.add_argument("--normal-root", required=True, help="Path to VoLN-normal or the Normal raw-data root.")
-    parser.add_argument("--hard-root", required=True, help="Path to VoLN-hard or the Hard raw-data root.")
+    parser.add_argument(
+        "--source-root",
+        action="append",
+        default=[],
+        help="Raw trajectory root. Provide this option once for each source directory.",
+    )
+    parser.add_argument("--easy-root", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--normal-root", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--hard-root", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--out-root", required=True, help="Output release directory.")
     parser.add_argument("--dataset-url", default=DEFAULT_DATASET_URL)
     parser.add_argument("--env-url", default=DEFAULT_ENV_URL)
@@ -34,18 +40,22 @@ def main() -> None:
     parser.add_argument("--no-zip", action="store_true", help="Do not create a ZIP archive.")
     parser.add_argument(
         "--max-episodes-per-source",
-        "--max-episodes-per-difficulty",
         type=int,
         default=None,
         dest="max_episodes_per_source",
-        help="Optional per-raw-source cap for smoke-testing the packaging process.",
+        help="Optional per-source cap for smoke-testing the packaging process.",
     )
     args = parser.parse_args()
+    legacy_roots = [args.easy_root, args.normal_root, args.hard_root]
+    if args.source_root:
+        source_roots = [Path(path) for path in args.source_root]
+    elif all(legacy_roots):
+        source_roots = [Path(path) for path in legacy_roots if path]
+    else:
+        parser.error("provide at least one --source-root")
 
     summary = prepare_dataset_release(
-        easy_root=Path(args.easy_root),
-        normal_root=Path(args.normal_root),
-        hard_root=Path(args.hard_root),
+        source_roots=source_roots,
         out_root=Path(args.out_root),
         dataset_url=args.dataset_url,
         env_url=args.env_url,

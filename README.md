@@ -61,35 +61,27 @@ The toy pipeline writes outputs to `data/toy_benchmark/` and `work_dirs/`.
 
 ## Dataset Release Preparation
 
-The paper protocol uses scene-level disjoint Train/Validation/Test splits, duplicate-control metadata based on start/goal poses, and reference-length difficulty thresholds:
-
-- Easy: path length < 300 m
-- Normal: 300 m <= path length < 450 m
-- Hard: path length >= 450 m
-
-The local folders `VoLN-simple`, `VoLN-normal`, and `VoLN-hard` are treated only as raw-source provenance. Final Easy/Normal/Hard labels are recomputed from each reference trajectory length (`L_ref`) and are not inherited from those folder names. Episodes without valid pose logs are written to `metadata/skipped.jsonl` because their trajectory length cannot be measured reliably.
-
 To organize the local raw dataset into a Hugging Face-ready release package:
 
 ```bash
 python -m voln_uav.cli.prepare_dataset_release \
-  --easy-root D:/VoLN_dataset/VoLN-simple \
-  --normal-root D:/VoLN_dataset/VoLN-normal \
-  --hard-root D:/VoLN_dataset/VoLN-hard \
+  --source-root /path/to/source_root_a \
+  --source-root /path/to/source_root_b \
+  --source-root /path/to/source_root_c \
   --out-root D:/VoLN_dataset/VoLN-UAV-Dataset-release \
   --zip-path D:/VoLN_dataset/VoLN-UAV-Dataset-release.zip \
   --asset-mode index
 ```
 
-`--asset-mode index` creates a compact ZIP containing route metadata, scene splits, provenance indices, skipped-episode reports, checksums, and a Hugging Face dataset card. It keeps image references pointing to the local raw-data folders and is the safest first pass for a very large dataset.
+`--asset-mode index` creates a compact ZIP containing route metadata, split manifests, checksums, and a Hugging Face dataset card. Use it for a quick metadata-only release check.
 
 For a full upload package that copies selected egocentric RGB frames into the release tree, use:
 
 ```bash
 python -m voln_uav.cli.prepare_dataset_release \
-  --easy-root D:/VoLN_dataset/VoLN-simple \
-  --normal-root D:/VoLN_dataset/VoLN-normal \
-  --hard-root D:/VoLN_dataset/VoLN-hard \
+  --source-root /path/to/source_root_a \
+  --source-root /path/to/source_root_b \
+  --source-root /path/to/source_root_c \
   --out-root D:/VoLN_dataset/VoLN-UAV-Dataset-release-full \
   --zip-path D:/VoLN_dataset/VoLN-UAV-Dataset-release-full.zip \
   --asset-mode copy
@@ -113,10 +105,7 @@ VoLN-UAV-Dataset-release/
     train.jsonl
     val.jsonl
     test.jsonl
-  metadata/
-    episodes.jsonl
-    source_data_index.jsonl
-    skipped.jsonl
+  metadata/                   Episode and source metadata
 ```
 
 After uploading the ZIP contents to `dataset`, keep the `env` link in the dataset card so users can fetch simulator assets separately.
