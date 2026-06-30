@@ -1,10 +1,10 @@
 seed: 7
-source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release/source
-output_root: D:/VoLN_dataset/VoLN-UAV-Benchmark
+source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/source
+output_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 scene_manifest: scenes.jsonl
 preset_routes_dir: preset_routes
 custom_routes_dir: custom_routes
-horizon: 6
+horizon: 8
 
 splits:
   train: 0.8
@@ -25,14 +25,16 @@ goal_interface:
   num_beacons: 2
 
 beacons:
-  task_beacons_per_route: 2
-  background_per_scene: 3
-  min_separation_steps: 4
+  task_beacons_per_route: 4
+  background_per_scene: 20
+  min_separation_steps: 8
   task_category_allowlist:
     - road-sign
     - turn-left
     - turn-right
     - junction
+    - ascend
+    - descend
 
 semantic_bank:
   categories:
@@ -48,3 +50,5 @@ semantic_bank:
     - turn-right
     - industrial-corridor
     - tunnel
+    - ascend
+    - descend

@@ -26,6 +26,11 @@ DEFAULT_ENV_EXEC_PATHS = {
     "forest_002": "extra_envs/BrushifyCountryRoads.sh",
     "tunnel_001": "extra_envs/Tunnel.sh",
     "tunnel_002": "extra_envs/IndustrialCorridor.sh",
+    "BattlefieldKitDesert": "extra_envs/BattlefieldKitDesert.sh",
+    "BrushifyCountryRoads": "extra_envs/BrushifyCountryRoads.sh",
+    "BrushifyForestPack": "extra_envs/BrushifyForestPack.sh",
+    "BrushifyUrban": "extra_envs/BrushifyUrban.sh",
+    "brushify": "extra_envs/brushify.sh",
 }
 
 
@@ -47,9 +52,9 @@ def launch_env(exec_path: Path, port: int, dry_run: bool) -> subprocess.Popen[st
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="TravelUAV-style environment launcher for VoLN-UAV")
-    parser.add_argument("--port", type=int, default=30000)
+    parser.add_argument("--port", type=int, default=41451)
     parser.add_argument("--root_path", type=str, required=True)
-    parser.add_argument("--scene", type=str, default="urban_001")
+    parser.add_argument("--scene", type=str, default="BrushifyUrban")
     parser.add_argument("--mapping_json", type=str, default="")
     parser.add_argument("--dry_run", action="store_true")
     args = parser.parse_args()

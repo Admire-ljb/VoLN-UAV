@@ -14,8 +14,8 @@ This script is the VoLN-UAV counterpart of TravelUAV's AirSim server launcher.
 ```bash
 python airsim_plugin/AirVoLNSimulatorServerTool.py \
   --root_path /path/to/your/envs \
-  --scene urban_001 \
-  --port 30000 \
+  --scene BrushifyUrban \
+  --port 41451 \
   --dry_run
 ```
 

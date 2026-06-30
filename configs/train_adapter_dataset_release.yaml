@@ -1,0 +1,16 @@
+seed: 7
+benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+records_file: records/train.jsonl
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release
+batch_size: 32
+num_workers: 4
+epochs: 10
+lr: 0.0005
+weight_decay: 0.0001
+log_every: 20
+model:
+  dino_backbone: hf:facebook/dinov2-base
+  clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
+  embed_dim: 512
+  adapter_hidden: 1024
+  image_size: 224

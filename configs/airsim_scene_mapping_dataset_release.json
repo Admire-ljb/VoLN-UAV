@@ -1,0 +1,7 @@
+{
+  "BattlefieldKitDesert": "extra_envs/BattlefieldKitDesert.sh",
+  "BrushifyCountryRoads": "extra_envs/BrushifyCountryRoads.sh",
+  "BrushifyForestPack": "extra_envs/BrushifyForestPack.sh",
+  "BrushifyUrban": "extra_envs/BrushifyUrban.sh",
+  "brushify": "extra_envs/brushify.sh"
+}

@@ -1,0 +1,53 @@
+seed: 7
+benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+episodes_file: test.jsonl
+semantic_bank: semantic_bank/categories.txt
+adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
+planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release
+
+ip: 127.0.0.1
+port: 41451
+camera: FrontCamera
+image_type: Scene
+speed: 3.0
+move_timeout_sec: 15.0
+settle_sec: 0.05
+connect_timeout_sec: 60.0
+control_mode: move_to_position
+budget_sec: 2.0
+max_steps: 128
+success_radius: 4.0
+stop_probability: 0.7
+min_steps_before_stop: 3
+
+# Leave auto_launch false if the AirSim/UE scene is already running.
+# Set env.auto_launch true and point root_path/scene_mapping to your local env executables.
+env:
+  auto_launch: false
+  root_path: D:/VoLN_dataset/VoLN-UAV-ENV
+  scene_mapping: configs/airsim_scene_mapping_dataset_release.json
+  launch_wait_sec: 20.0
+  executable_args:
+    - --port
+    - "{port}"
+
+# Optional debugging knobs:
+# scene_allowlist: [BrushifyUrban]
+# difficulty_allowlist: [Easy]
+# episode_limit: 5
+
+model:
+  dino_backbone: hf:facebook/dinov2-base
+  clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
+  text_encoder: open_clip:ViT-B-32
+  embed_dim: 512
+  adapter_hidden: 1024
+  image_size: 224
+  top_k_semantic: 8
+  hidden_dim: 512
+  num_heads: 8
+  num_layers: 6
+  lora_rank: 16
+  horizon: 8
+  memory_len: 8

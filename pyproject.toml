@@ -33,6 +33,10 @@ dev = [
 [project.scripts]
 voln-uav-build-benchmark = "voln_uav.cli.build_benchmark:main"
 voln-uav-prepare-dataset = "voln_uav.cli.prepare_dataset_release:main"
+voln-uav-train-adapter = "voln_uav.cli.train_adapter:main"
+voln-uav-train-planner = "voln_uav.cli.train_planner:main"
+voln-uav-eval-offline = "voln_uav.cli.eval_offline:main"
+voln-uav-eval-airsim = "voln_uav.cli.eval_airsim:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

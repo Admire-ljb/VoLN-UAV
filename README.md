@@ -18,7 +18,7 @@ src/voln_uav/
   models/         DINO-to-CLIP adapter, semantic bank, planner, LoRA modules
   training/       Adapter/planner training and DAgger-style collection
   evaluation/     Offline closed-loop evaluation and metrics
-  simulators/     Route replay environment
+  simulators/     Route replay and AirSim environment interfaces
   cli/            Command-line entry points
 configs/          Toy and real-data configuration templates
 examples/         Toy source generator and replay helpers
@@ -112,11 +112,11 @@ After uploading the ZIP contents to `dataset`, keep the `env` link in the datase
 
 ## Benchmark Construction From Release Metadata
 
-Once a release source tree exists, update `configs/benchmark_library_update.yaml` or create a new config with:
+Once a release source tree exists, update `configs/benchmark_dataset_release.yaml` if your dataset path differs:
 
 ```yaml
-source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release/source
-output_root: D:/VoLN_dataset/VoLN-UAV-Benchmark
+source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/source
+output_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 scene_manifest: scenes.jsonl
 preset_routes_dir: preset_routes
 custom_routes_dir: custom_routes
@@ -125,7 +125,7 @@ custom_routes_dir: custom_routes
 Then run:
 
 ```bash
-python -m voln_uav.cli.build_benchmark --config configs/benchmark_library_update.yaml
+python -m voln_uav.cli.build_benchmark --config configs/benchmark_dataset_release.yaml
 ```
 
 The builder writes:
@@ -135,6 +135,44 @@ The builder writes:
 - `records/train.jsonl`, `records/val.jsonl`, `records/test.jsonl`
 - `semantic_bank/categories.txt`
 - `summary.json`
+
+## Full Dataset Training
+
+For the packaged dataset at `D:/VoLN_dataset/VoLN-UAV-Dataset-release-full`, the ready-to-run configs are:
+
+- `configs/benchmark_dataset_release.yaml`
+- `configs/train_adapter_dataset_release.yaml`
+- `configs/train_planner_dataset_release.yaml`
+- `configs/eval_offline_dataset_release.yaml`
+- `configs/eval_airsim_dataset_release.yaml`
+
+Install the real-backbone dependencies before full training:
+
+```bash
+pip install -e .[real]
+```
+
+Run the real-data pipeline:
+
+```bash
+python scripts/run_dataset_release_pipeline.py --device cuda
+```
+
+This runs benchmark construction, adapter training, planner training, and offline evaluation. Outputs are written to:
+
+```text
+D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release
+D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release
+D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release
+```
+
+To run only selected stages:
+
+```bash
+python scripts/run_dataset_release_pipeline.py --stages build train-adapter --device cuda
+python scripts/run_dataset_release_pipeline.py --stages train-planner offline-eval --device cuda
+```
 
 ## Training And Evaluation
 
@@ -146,17 +184,29 @@ python -m voln_uav.cli.eval_offline --config configs/eval_library_update.yaml
 
 The offline evaluator reports `SR`, `OSR`, `NE`, `nDTW`, `SPL`, `CT`, and `EER`.
 
-## AirSim Environment Launcher
+## AirSim Environment Evaluation
 
 ```bash
 python airsim_plugin/AirVoLNSimulatorServerTool.py \
   --root_path /path/to/envs \
-  --scene urban_001 \
-  --port 30000 \
+  --scene BrushifyUrban \
+  --port 41451 \
   --dry_run
 ```
 
 Provide `--mapping_json` if your local executable names differ from the default scene mapping.
+
+After the AirSim scene is running, evaluate the trained policy in the simulator:
+
+```bash
+python -m voln_uav.cli.eval_airsim \
+  --config configs/eval_airsim_dataset_release.yaml \
+  --device cuda
+```
+
+The AirSim evaluator connects to the running simulator, resets each episode to its start pose, captures live RGB observations, executes predicted waypoints with `moveToPositionAsync`, and writes metrics plus executed trajectories to `D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release`.
+
+If you want the evaluator to launch scenes automatically, set `env.auto_launch: true` in `configs/eval_airsim_dataset_release.yaml` and update `configs/airsim_scene_mapping_dataset_release.json` to match the executable paths in your `env` package.
 
 ## Acknowledgement
 
