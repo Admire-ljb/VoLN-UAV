@@ -167,6 +167,8 @@ D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release
 D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release
 ```
 
+Planner training stores reusable image embeddings in the planner run directory and reuses them when training is resumed.
+
 To run only selected stages:
 
 ```bash

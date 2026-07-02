@@ -6,9 +6,11 @@ semantic_bank: semantic_bank/categories.txt
 adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
 work_dir: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release
 batch_size: 16
-num_workers: 4
+num_workers: 0
 epochs: 20
 cache_image_embeddings: true
+precompute_image_embeddings: true
+image_embedding_batch_size: 64
 lr: 0.0003
 weight_decay: 0.0001
 log_every: 20

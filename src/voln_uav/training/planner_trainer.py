@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
+from voln_uav.common.image import load_image_tensor
 from voln_uav.common.io import ensure_dir, read_json, write_json
 from voln_uav.data.collate import default_collate_dict
 from voln_uav.data.episode_dataset import PlannerDataset
@@ -58,6 +59,11 @@ class PlannerTrainer:
         )
         dino_encoder = build_image_encoder(model_cfg["dino_backbone"], out_dim=self.embed_dim, image_size=int(model_cfg.get("image_size", 64)))
         adapter = load_adapter(config["adapter_ckpt"], in_dim=self.embed_dim, hidden_dim=int(model_cfg["adapter_hidden"]), out_dim=self.embed_dim)
+        self._precompute_image_embeddings(
+            dino_encoder=dino_encoder,
+            adapter=adapter,
+            image_size=int(model_cfg.get("image_size", 64)),
+        )
         semantic_bank = SemanticBank.from_file(config["benchmark_root"] + "/" + config["semantic_bank"], encoder_name=model_cfg["text_encoder"], dim=self.embed_dim)
         self.planner = VoLNPlanner(
             dino_encoder=dino_encoder,
@@ -77,6 +83,80 @@ class PlannerTrainer:
             lr=float(config["lr"]),
             weight_decay=float(config.get("weight_decay", 0.0)),
         )
+
+    @staticmethod
+    def _root_dataset_and_indices(dataset: PlannerDataset | Subset) -> tuple[PlannerDataset, list[int]]:
+        if isinstance(dataset, Subset):
+            if not isinstance(dataset.dataset, PlannerDataset):
+                raise TypeError("Planner Subset must wrap PlannerDataset")
+            return dataset.dataset, [int(i) for i in dataset.indices]
+        return dataset, list(range(len(dataset.records)))
+
+    def _collect_image_paths(self) -> list[Path]:
+        seen: set[str] = set()
+        paths: list[Path] = []
+        for dataset in (self.train_dataset, self.val_dataset):
+            root, indices = self._root_dataset_and_indices(dataset)
+            for idx in indices:
+                record = root.records[idx]
+                for path in root.image_paths_for_record(record):
+                    key = str(path)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    paths.append(path)
+        return paths
+
+    def _set_image_embeddings(self, embeddings: dict[str, torch.Tensor]) -> None:
+        for dataset in (self.train_dataset, self.val_dataset):
+            root, _ = self._root_dataset_and_indices(dataset)
+            root.image_embeddings = embeddings
+
+    @staticmethod
+    def _load_embedding_cache(path: Path) -> dict[str, torch.Tensor]:
+        if not path.exists():
+            return {}
+        payload = torch.load(path, map_location="cpu")
+        if isinstance(payload, dict) and "embeddings" in payload:
+            embeddings = payload["embeddings"]
+        else:
+            embeddings = payload
+        if not isinstance(embeddings, dict):
+            raise ValueError(f"Invalid image embedding cache: {path}")
+        return {str(k): v.float().cpu() for k, v in embeddings.items() if torch.is_tensor(v)}
+
+    def _precompute_image_embeddings(self, dino_encoder: torch.nn.Module, adapter: torch.nn.Module, image_size: int) -> None:
+        if not bool(self.cfg.get("precompute_image_embeddings", False)):
+            return
+
+        cache_path = Path(self.cfg.get("image_embedding_cache_path", self.work_dir / "image_embeddings.pt"))
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        embeddings = self._load_embedding_cache(cache_path)
+        paths = self._collect_image_paths()
+        missing = [path for path in paths if str(path) not in embeddings]
+
+        dino_encoder.to(self.device)
+        adapter.to(self.device)
+        dino_encoder.eval()
+        adapter.eval()
+
+        batch_size = int(self.cfg.get("image_embedding_batch_size", 64))
+        save_every = int(self.cfg.get("image_embedding_save_every", 1000))
+        if missing:
+            progress = tqdm(range(0, len(missing), batch_size), desc="precompute-image-emb")
+            computed = 0
+            with torch.no_grad():
+                for start in progress:
+                    batch_paths = missing[start : start + batch_size]
+                    images = torch.stack([load_image_tensor(path, image_size=image_size) for path in batch_paths], dim=0).to(self.device)
+                    encoded = adapter(dino_encoder(images)).detach().cpu()
+                    for path, embedding in zip(batch_paths, encoded):
+                        embeddings[str(path)] = embedding.float()
+                    computed += len(batch_paths)
+                    if save_every > 0 and computed % save_every == 0:
+                        torch.save({"embeddings": embeddings, "meta": {"count": len(embeddings)}}, cache_path)
+            torch.save({"embeddings": embeddings, "meta": {"count": len(embeddings)}}, cache_path)
+        self._set_image_embeddings(embeddings)
 
     def _move_batch(self, batch: dict[str, Any]) -> dict[str, Any]:
         out = {}

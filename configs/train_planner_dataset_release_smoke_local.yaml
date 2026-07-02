@@ -9,6 +9,8 @@ batch_size: 2
 num_workers: 0
 epochs: 1
 cache_image_embeddings: true
+precompute_image_embeddings: true
+image_embedding_batch_size: 64
 max_train_records: 4
 max_val_records: 4
 resume: false
