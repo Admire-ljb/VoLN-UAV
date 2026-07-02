@@ -67,6 +67,7 @@ class VoLNPlanner(nn.Module):
         lora_rank: int,
         horizon: int,
         top_k_semantic: int,
+        cache_image_embeddings: bool = False,
         proprio_dim: int = 9,
     ) -> None:
         super().__init__()
@@ -78,6 +79,8 @@ class VoLNPlanner(nn.Module):
         self.horizon = horizon
         self.top_k_semantic = top_k_semantic
         self.proprio_dim = proprio_dim
+        self.cache_image_embeddings = bool(cache_image_embeddings)
+        self._image_embedding_cache: dict[str, torch.Tensor] = {}
 
         self.history_proj = nn.Linear(embed_dim + proprio_dim, hidden_dim)
         self.image_proj = nn.Linear(embed_dim, hidden_dim)
@@ -100,19 +103,67 @@ class VoLNPlanner(nn.Module):
         self.dino_encoder.eval()
         self.adapter.eval()
 
-    def encode_images(self, images: torch.Tensor) -> torch.Tensor:
+    def train(self, mode: bool = True) -> "VoLNPlanner":
+        super().train(mode)
+        self.dino_encoder.eval()
+        self.adapter.eval()
+        return self
+
+    @staticmethod
+    def _flatten_image_paths(paths: Any) -> list[str] | None:
+        if paths is None:
+            return None
+        if isinstance(paths, (str, Path)):
+            return [str(paths)]
+        flat: list[str] = []
+        for item in paths:
+            if isinstance(item, (list, tuple)):
+                flat.extend(str(p) for p in item)
+            else:
+                flat.append(str(item))
+        return flat
+
+    def _encode_uncached_images(self, images: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            dino = self.dino_encoder(images)
+            return self.adapter(dino)
+
+    def _encode_flat_images(self, images: torch.Tensor, paths: list[str] | None) -> torch.Tensor:
+        if not self.cache_image_embeddings or paths is None or len(paths) != images.shape[0]:
+            return self._encode_uncached_images(images)
+
+        outputs: list[torch.Tensor | None] = [None] * len(paths)
+        pending: dict[str, list[int]] = {}
+        for idx, path in enumerate(paths):
+            cached = self._image_embedding_cache.get(path)
+            if cached is None:
+                pending.setdefault(path, []).append(idx)
+            else:
+                outputs[idx] = cached.to(device=images.device)
+
+        if pending:
+            missing_keys = list(pending.keys())
+            first_indices = torch.tensor([pending[key][0] for key in missing_keys], device=images.device)
+            encoded = self._encode_uncached_images(images.index_select(0, first_indices))
+            for key, embedding in zip(missing_keys, encoded):
+                detached = embedding.detach()
+                self._image_embedding_cache[key] = detached.cpu()
+                for idx in pending[key]:
+                    outputs[idx] = detached
+
+        if any(item is None for item in outputs):
+            raise RuntimeError("Image embedding cache returned an incomplete batch")
+        return torch.stack([item.to(device=images.device) for item in outputs if item is not None], dim=0)
+
+    def encode_images(self, images: torch.Tensor, paths: Any = None) -> torch.Tensor:
+        flat_paths = self._flatten_image_paths(paths)
         if images.ndim == 5:
             b, n, c, h, w = images.shape
-            flat = images.view(b * n, c, h, w)
-            with torch.no_grad():
-                dino = self.dino_encoder(flat)
-                aligned = self.adapter(dino)
+            flat = images.reshape(b * n, c, h, w)
+            aligned = self._encode_flat_images(flat, flat_paths)
             return aligned.view(b, n, -1)
         if images.ndim == 4:
-            with torch.no_grad():
-                dino = self.dino_encoder(images)
-                aligned = self.adapter(dino)
-            return aligned
+            return self._encode_flat_images(images, flat_paths)
         raise ValueError(f"Unsupported image tensor shape: {tuple(images.shape)}")
 
     def _retrieve_semantic_tokens(self, query: torch.Tensor) -> tuple[torch.Tensor, list[list[str]]]:
@@ -126,11 +177,11 @@ class VoLNPlanner(nn.Module):
         return torch.stack(batch_embeds, dim=0), batch_names
 
     def build_token_sequence(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, dict[str, Any]]:
-        history_img_emb = self.encode_images(batch["history_images"])
-        current_emb = self.encode_images(batch["image"])
-        goal_emb = self.encode_images(batch["goal_images"]).mean(dim=1)
-        subgoal_emb = self.encode_images(batch["subgoal_images"]).mean(dim=1)
-        beacon_emb = self.encode_images(batch["beacon_images"]).mean(dim=1)
+        history_img_emb = self.encode_images(batch["history_images"], batch.get("history_image_paths"))
+        current_emb = self.encode_images(batch["image"], batch.get("image_path"))
+        goal_emb = self.encode_images(batch["goal_images"], batch.get("goal_image_paths")).mean(dim=1)
+        subgoal_emb = self.encode_images(batch["subgoal_images"], batch.get("subgoal_image_paths")).mean(dim=1)
+        beacon_emb = self.encode_images(batch["beacon_images"], batch.get("beacon_image_paths")).mean(dim=1)
         semantic_embeds, semantic_names = self._retrieve_semantic_tokens(current_emb)
 
         hist_inputs = torch.cat([history_img_emb, batch["history_proprio"]], dim=-1)

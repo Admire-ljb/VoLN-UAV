@@ -4,7 +4,7 @@ episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
 adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
 planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_smoke_running
 
 ip: 127.0.0.1
 port: 41451
@@ -13,7 +13,7 @@ image_type: Scene
 speed: 3.0
 move_timeout_sec: 15.0
 settle_sec: 0.05
-connect_timeout_sec: 60.0
+connect_timeout_sec: 120.0
 control_mode: move_to_position
 budget_sec: 2.0
 max_steps: 128
@@ -61,3 +61,6 @@ model:
   lora_rank: 16
   horizon: 8
   memory_len: 8
+
+episode_limit: 1
+scene_allowlist: [BrushifyForestPack]

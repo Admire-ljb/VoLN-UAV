@@ -30,15 +30,14 @@ class SemanticBank:
 
     def retrieve(self, query: torch.Tensor, top_k: int) -> RetrievalResult:
         query = torch.nn.functional.normalize(query.float(), dim=-1)
-        sims = query @ self.embeddings.T
+        embeddings = self.embeddings.to(device=query.device, dtype=query.dtype)
+        sims = query @ embeddings.T
         k = min(top_k, self.embeddings.shape[0])
         scores, idx = torch.topk(sims, k=k, dim=-1)
         if query.ndim == 1:
             categories = [self.categories[i] for i in idx.tolist()]
-            embeddings = self.embeddings[idx]
-            return RetrievalResult(categories=categories, scores=scores, embeddings=embeddings)
+            return RetrievalResult(categories=categories, scores=scores, embeddings=embeddings[idx])
         # batched path
         # flattening category names is only used for logging; not needed in training.
         categories = [self.categories[i] for i in idx[0].tolist()]
-        embeddings = self.embeddings[idx]
-        return RetrievalResult(categories=categories, scores=scores, embeddings=embeddings)
+        return RetrievalResult(categories=categories, scores=scores, embeddings=embeddings[idx])

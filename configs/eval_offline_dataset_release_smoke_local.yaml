@@ -1,18 +1,15 @@
 seed: 7
 benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
-train_records: records/train.jsonl
-val_records: records/val.jsonl
+episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
 adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release
-batch_size: 16
-num_workers: 4
-epochs: 20
-cache_image_embeddings: true
-lr: 0.0003
-weight_decay: 0.0001
-log_every: 20
-success_radius: 4.0
+planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release_smoke
+budget_sec: 2.0
+max_steps: 128
+success_radius: 20.0
+episode_limit: 2
+log_every: 1
 model:
   dino_backbone: hf:facebook/dinov2-base
   clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
@@ -27,7 +24,3 @@ model:
   lora_rank: 16
   horizon: 8
   memory_len: 8
-loss:
-  waypoint_l1_weight: 1.0
-  anchor_weight: 0.5
-  stop_weight: 0.1

@@ -61,7 +61,7 @@ class RouteReplayEnv:
         if action_waypoints is None or not torch.isfinite(action_waypoints).all():
             self.execution_errors += 1
             self.collisions += 1
-            next_idx = min(self.current_idx + 1, len(self.states) - 1)
+            next_idx = self.current_idx
         else:
             target = action_waypoints[0].detach().cpu().tolist()
             future_candidates = list(range(self.current_idx + 1, min(self.current_idx + 6, len(self.states))))
@@ -71,7 +71,7 @@ class RouteReplayEnv:
             best_dist = l2(target, self.states[best_idx]["position"])
             if best_dist > self.success_radius * 1.5:
                 self.collisions += 1
-                next_idx = min(self.current_idx + 1, len(self.states) - 1)
+                next_idx = self.current_idx
             else:
                 next_idx = best_idx
 

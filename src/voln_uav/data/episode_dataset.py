@@ -65,23 +65,33 @@ class PlannerDataset(_BenchmarkBase):
         record = self.records[idx]
         episode = self.episodes[record["episode_id"]]
         step_idx = int(record["step"])
-        cur_image = load_image_tensor(self._resolve_path(record["image"]), image_size=self.image_size)
-        history_images = stack_images(self._history_paths(episode, step_idx), image_size=self.image_size)
+        cur_path = self._resolve_path(record["image"])
+        history_paths = self._history_paths(episode, step_idx)
+        goal_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_goal"]]
+        subgoal_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_sub"]]
+        beacon_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_beacon"]]
+        cur_image = load_image_tensor(cur_path, image_size=self.image_size)
+        history_images = stack_images(history_paths, image_size=self.image_size)
         history_proprio = self._history_proprio(episode, step_idx)
-        goal_images = stack_images([self._resolve_path(p) for p in record["visual_goal"]["V_goal"]], image_size=self.image_size)
-        subgoal_images = stack_images([self._resolve_path(p) for p in record["visual_goal"]["V_sub"]], image_size=self.image_size)
-        beacon_images = stack_images([self._resolve_path(p) for p in record["visual_goal"]["V_beacon"]], image_size=self.image_size)
+        goal_images = stack_images(goal_paths, image_size=self.image_size)
+        subgoal_images = stack_images(subgoal_paths, image_size=self.image_size)
+        beacon_images = stack_images(beacon_paths, image_size=self.image_size)
         item = {
             "record_id": record["record_id"],
             "episode_id": record["episode_id"],
             "step": step_idx,
             "image": cur_image,
+            "image_path": str(cur_path),
             "history_images": history_images,
+            "history_image_paths": [str(p) for p in history_paths],
             "history_proprio": history_proprio,
             "proprio": torch.tensor(record["proprio"], dtype=torch.float32),
             "goal_images": goal_images,
+            "goal_image_paths": [str(p) for p in goal_paths],
             "subgoal_images": subgoal_images,
+            "subgoal_image_paths": [str(p) for p in subgoal_paths],
             "beacon_images": beacon_images,
+            "beacon_image_paths": [str(p) for p in beacon_paths],
             "future_waypoints": torch.tensor(record["future_waypoints"], dtype=torch.float32),
             "anchor_waypoint": torch.tensor(record["anchor_waypoint"], dtype=torch.float32),
             "stop": torch.tensor(float(record["stop"]), dtype=torch.float32),

@@ -7,7 +7,7 @@ planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last
 work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release
 budget_sec: 2.0
 max_steps: 128
-success_radius: 4.0
+success_radius: 20.0
 model:
   dino_backbone: hf:facebook/dinov2-base
   clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k

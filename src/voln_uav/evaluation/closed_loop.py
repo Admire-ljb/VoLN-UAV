@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any
 
-from voln_uav.common.io import read_jsonl, write_json
-from voln_uav.evaluation.metrics import aggregate_metrics, summarize_episode
+from voln_uav.common.io import ensure_dir, read_jsonl, write_json
+from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, summarize_episode
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.offline_env import RouteReplayEnv
 
@@ -16,6 +17,9 @@ class ClosedLoopEvaluator:
         self.device = device
         self.benchmark_root = Path(config["benchmark_root"])
         self.episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
+        episode_limit = config.get("episode_limit")
+        if episode_limit is not None:
+            self.episodes = self.episodes[: int(episode_limit)]
         self.policy = VoLNPolicy(
             config=config,
             semantic_bank_path=self.benchmark_root / config["semantic_bank"],
@@ -25,11 +29,17 @@ class ClosedLoopEvaluator:
         )
 
     def evaluate(self) -> dict[str, Any]:
+        work_dir = ensure_dir(self.cfg["work_dir"])
+        details_path = work_dir / "details.jsonl"
+        progress_path = work_dir / "progress.json"
+        details_path.write_text("", encoding="utf-8")
         episode_metrics = []
         cycle_times = []
         execution_errors = 0
         details = []
-        for episode in self.episodes:
+        total_episodes = len(self.episodes)
+        log_every = int(self.cfg.get("log_every", 10))
+        for ep_idx, episode in enumerate(self.episodes, start=1):
             env = RouteReplayEnv(
                 episode,
                 success_radius=float(self.cfg["success_radius"]),
@@ -66,14 +76,27 @@ class ClosedLoopEvaluator:
                 shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
             )
             episode_metrics.append(metrics)
-            details.append(
-                {
-                    "episode_id": episode["episode_id"],
-                    **metrics,
-                    "cycle_errors": local_errors,
-                    "num_cycles": len(pred_path),
-                }
-            )
+            detail = {
+                "episode_id": episode["episode_id"],
+                "scene_id": episode["scene_id"],
+                "difficulty": episode.get("difficulty"),
+                **metrics,
+                "cycle_errors": local_errors,
+                "num_cycles": len(pred_path),
+            }
+            details.append(detail)
+            with details_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(detail, ensure_ascii=False) + "\n")
+            partial = {
+                "completed": ep_idx,
+                "episodes": total_episodes,
+                "last_episode_id": episode["episode_id"],
+                "partial_metrics": aggregate_metrics(episode_metrics),
+                "by_difficulty": aggregate_by_difficulty(details),
+            }
+            write_json(partial, progress_path)
+            if ep_idx == 1 or ep_idx % log_every == 0 or ep_idx == total_episodes:
+                print(f"[eval_offline] {ep_idx}/{total_episodes} episodes complete", flush=True)
         agg = aggregate_metrics(episode_metrics)
         ct_mean = sum(cycle_times) / max(len(cycle_times), 1)
         sorted_ct = sorted(cycle_times)
@@ -86,7 +109,8 @@ class ClosedLoopEvaluator:
             "CT_p95": ct_p95,
             "EER": eer,
             "episodes": len(self.episodes),
+            "by_difficulty": aggregate_by_difficulty(details),
             "details": details,
         }
-        write_json(summary, Path(self.cfg["work_dir"]) / "metrics.json")
+        write_json(summary, work_dir / "metrics.json")
         return summary

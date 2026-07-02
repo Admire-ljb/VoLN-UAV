@@ -5,7 +5,7 @@ from typing import Any
 
 import torch
 
-from voln_uav.common.image import load_image_tensor, stack_images
+from voln_uav.common.image import load_image_tensor
 from voln_uav.models.adapter import load_adapter
 from voln_uav.models.encoders import build_image_encoder
 from voln_uav.models.planner import VoLNPlanner
@@ -19,6 +19,7 @@ class VoLNPolicy:
         self.device = torch.device(device)
         self.benchmark_root = Path(config["benchmark_root"]).resolve() if "benchmark_root" in config else Path.cwd()
         self.repo_root = self.benchmark_root.parent
+        self._image_cache: dict[str, torch.Tensor] = {}
         embed_dim = int(model_cfg["embed_dim"])
         image_size = int(model_cfg.get("image_size", 64))
         hidden_dim = int(model_cfg["hidden_dim"])
@@ -62,13 +63,27 @@ class VoLNPolicy:
             return str(candidate2)
         raise FileNotFoundError(f"Could not resolve path: {path_like}")
 
+    def _load_cached_image(self, path_like: str) -> torch.Tensor:
+        resolved = self._resolve(path_like)
+        key = f"{resolved}|{self.image_size}"
+        item = self._image_cache.get(key)
+        if item is None:
+            item = load_image_tensor(resolved, image_size=self.image_size)
+            self._image_cache[key] = item
+        return item
+
+    def _stack_cached_images(self, paths: list[str]) -> torch.Tensor:
+        if not paths:
+            return torch.zeros(1, 3, self.image_size, self.image_size)
+        return torch.stack([self._load_cached_image(p) for p in paths], dim=0)
+
     def prepare_batch(self, state: dict[str, Any], history_states: list[dict[str, Any]], visual_goal: dict[str, Any]) -> dict[str, torch.Tensor]:
-        history_images = stack_images([self._resolve(s["image"]) for s in history_states], image_size=self.image_size).unsqueeze(0)
+        history_images = self._stack_cached_images([s["image"] for s in history_states]).unsqueeze(0)
         history_proprio = torch.tensor([list(s.get("imu", [])) + list(s.get("odometry", [])) for s in history_states], dtype=torch.float32).unsqueeze(0)
-        cur_image = load_image_tensor(self._resolve(state["image"]), image_size=self.image_size).unsqueeze(0)
-        goal_images = stack_images([self._resolve(p) for p in visual_goal["V_goal"]], image_size=self.image_size).unsqueeze(0)
-        subgoal_images = stack_images([self._resolve(p) for p in visual_goal["V_sub"]], image_size=self.image_size).unsqueeze(0)
-        beacon_images = stack_images([self._resolve(p) for p in visual_goal["V_beacon"]], image_size=self.image_size).unsqueeze(0)
+        cur_image = self._load_cached_image(state["image"]).unsqueeze(0)
+        goal_images = self._stack_cached_images(list(visual_goal["V_goal"])).unsqueeze(0)
+        subgoal_images = self._stack_cached_images(list(visual_goal["V_sub"])).unsqueeze(0)
+        beacon_images = self._stack_cached_images(list(visual_goal["V_beacon"])).unsqueeze(0)
         proprio = torch.tensor(list(state.get("imu", [])) + list(state.get("odometry", [])), dtype=torch.float32).unsqueeze(0)
         return {
             "history_images": history_images.to(self.device),

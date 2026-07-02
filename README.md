@@ -174,6 +174,16 @@ python scripts/run_dataset_release_pipeline.py --stages build train-adapter --de
 python scripts/run_dataset_release_pipeline.py --stages train-planner offline-eval --device cuda
 ```
 
+On Windows, the helper scripts use the dataset-release configs by default:
+
+```bat
+scripts\run_train_adapter.cmd
+scripts\run_train_planner.cmd
+scripts\run_eval_offline.cmd
+```
+
+Set `CONFIG`, `DEVICE`, or `PYTHON` before calling a script to override the defaults.
+
 ## Training And Evaluation
 
 ```bash
@@ -196,6 +206,14 @@ python airsim_plugin/AirVoLNSimulatorServerTool.py \
 
 Provide `--mapping_json` if your local executable names differ from the default scene mapping.
 
+Check the AirSim setup before loading the model:
+
+```bash
+python -m voln_uav.cli.eval_airsim \
+  --config configs/eval_airsim_dataset_release.yaml \
+  --preflight
+```
+
 After the AirSim scene is running, evaluate the trained policy in the simulator:
 
 ```bash
@@ -205,6 +223,44 @@ python -m voln_uav.cli.eval_airsim \
 ```
 
 The AirSim evaluator connects to the running simulator, resets each episode to its start pose, captures live RGB observations, executes predicted waypoints with `moveToPositionAsync`, and writes metrics plus executed trajectories to `D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release`.
+
+For trajectory-level sanity checks, run the online reference and random-flight baselines. Both execute waypoints through AirSim movement commands by default:
+
+```bat
+set BASELINE=reference
+set TRIALS=10
+scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_reference_pose_10
+
+set BASELINE=random
+set TRIALS=10
+scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_random_flight_10
+```
+
+To summarize a run directory as paper-style metrics:
+
+```bat
+scripts\report_metrics.cmd D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release
+```
+
+To inspect the test scene before running full evaluation, start the local RGB stream. The stream command resets the selected episode, places route-aware visual beacons, and serves the live AirSim camera:
+
+```bat
+scripts\start_airsim_stream.cmd
+```
+
+Open `http://127.0.0.1:8765/` in a browser. Useful endpoints are `/status.json`, `/beacons.json`, `/snapshot.jpg`, `/takeoff.json`, `/reference.json?step=18&mode=status`, `/reference.json?step=18&mode=move_to_position`, and `/reference.json?step=18&mode=teleport`.
+
+For a one-episode AirSim smoke test, run:
+
+```bat
+scripts\run_airsim_eval_smoke.cmd
+```
+
+Stop the stream before running AirSim evaluation so that only one client controls the simulator:
+
+```bat
+scripts\stop_airsim_stream.cmd
+```
 
 If you want the evaluator to launch scenes automatically, set `env.auto_launch: true` in `configs/eval_airsim_dataset_release.yaml` and update `configs/airsim_scene_mapping_dataset_release.json` to match the executable paths in your `env` package.
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from voln_uav.common.io import ensure_dir, write_json
@@ -26,6 +26,9 @@ class AdapterTrainer:
             records_file=config["records_file"],
             image_size=int(model_cfg.get("image_size", 64)),
         )
+        max_records = config.get("max_records")
+        if max_records is not None:
+            self.dataset = Subset(self.dataset, range(min(int(max_records), len(self.dataset))))
         self.loader = DataLoader(
             self.dataset,
             batch_size=int(config["batch_size"]),

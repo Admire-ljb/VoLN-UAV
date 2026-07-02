@@ -7,6 +7,8 @@ from voln_uav.common.geometry import l2, path_length
 
 
 Vec3 = Sequence[float]
+METRIC_KEYS = ("NE", "SR", "OSR", "nDTW", "SPL")
+DIFFICULTY_ORDER = ("Easy", "Normal", "Hard")
 
 
 
@@ -71,6 +73,23 @@ def summarize_episode(pred_path: Sequence[Vec3], ref_path: Sequence[Vec3], goal:
 
 def aggregate_metrics(items: list[dict[str, float]]) -> dict[str, float]:
     if not items:
-        return {"NE": 0.0, "SR": 0.0, "OSR": 0.0, "nDTW": 0.0, "SPL": 0.0}
-    keys = items[0].keys()
+        return {key: 0.0 for key in METRIC_KEYS}
+    keys = [key for key in METRIC_KEYS if key in items[0]]
     return {k: sum(x[k] for x in items) / len(items) for k in keys}
+
+
+def aggregate_by_difficulty(items: list[dict[str, float | str | None]]) -> dict[str, dict[str, float | int]]:
+    grouped: dict[str, list[dict[str, float | str | None]]] = {}
+    for item in items:
+        difficulty = str(item.get("difficulty") or "Unknown")
+        grouped.setdefault(difficulty, []).append(item)
+
+    ordered = [name for name in DIFFICULTY_ORDER if name in grouped]
+    ordered.extend(name for name in sorted(grouped) if name not in DIFFICULTY_ORDER)
+
+    summary: dict[str, dict[str, float | int]] = {}
+    for difficulty in ordered:
+        group = grouped[difficulty]
+        metrics = aggregate_metrics([{key: float(item[key]) for key in METRIC_KEYS} for item in group])
+        summary[difficulty] = {"episodes": len(group), **metrics}
+    return summary

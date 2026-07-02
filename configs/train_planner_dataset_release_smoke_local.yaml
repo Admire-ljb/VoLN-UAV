@@ -1,0 +1,36 @@
+seed: 7
+benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+train_records: records/train.jsonl
+val_records: records/val.jsonl
+semantic_bank: semantic_bank/categories.txt
+adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/smoke_adapter_dataset_release/adapter_last.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/smoke_planner_dataset_release
+batch_size: 2
+num_workers: 0
+epochs: 1
+cache_image_embeddings: true
+max_train_records: 4
+max_val_records: 4
+resume: false
+lr: 0.002
+weight_decay: 0.0001
+log_every: 1
+success_radius: 4.0
+model:
+  dino_backbone: toy_dino
+  clip_image_encoder: toy_clip
+  text_encoder: toy_text
+  embed_dim: 64
+  adapter_hidden: 128
+  image_size: 32
+  top_k_semantic: 5
+  hidden_dim: 96
+  num_heads: 4
+  num_layers: 2
+  lora_rank: 4
+  horizon: 8
+  memory_len: 4
+loss:
+  waypoint_l1_weight: 1.0
+  anchor_weight: 0.5
+  stop_weight: 0.1
