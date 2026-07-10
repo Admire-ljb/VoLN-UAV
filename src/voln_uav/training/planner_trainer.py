@@ -13,7 +13,8 @@ from voln_uav.data.collate import default_collate_dict
 from voln_uav.data.episode_dataset import PlannerDataset
 from voln_uav.models.adapter import load_adapter
 from voln_uav.models.encoders import build_image_encoder
-from voln_uav.models.planner import VoLNPlanner, save_planner
+from voln_uav.models.planner import save_planner
+from voln_uav.models.planner_factory import build_planner, normalize_planner_variant
 from voln_uav.models.semantic_bank import SemanticBank
 from voln_uav.training.losses import planner_loss
 
@@ -65,17 +66,11 @@ class PlannerTrainer:
             image_size=int(model_cfg.get("image_size", 64)),
         )
         semantic_bank = SemanticBank.from_file(config["benchmark_root"] + "/" + config["semantic_bank"], encoder_name=model_cfg["text_encoder"], dim=self.embed_dim)
-        self.planner = VoLNPlanner(
+        self.planner = build_planner(
+            model_cfg=model_cfg,
             dino_encoder=dino_encoder,
             adapter=adapter,
             semantic_bank=semantic_bank,
-            embed_dim=self.embed_dim,
-            hidden_dim=int(model_cfg["hidden_dim"]),
-            num_heads=int(model_cfg["num_heads"]),
-            num_layers=int(model_cfg["num_layers"]),
-            lora_rank=int(model_cfg["lora_rank"]),
-            horizon=int(model_cfg["horizon"]),
-            top_k_semantic=int(model_cfg["top_k_semantic"]),
             cache_image_embeddings=bool(config.get("cache_image_embeddings", model_cfg.get("cache_image_embeddings", False))),
         ).to(self.device)
         self.optimizer = torch.optim.AdamW(
@@ -240,10 +235,10 @@ class PlannerTrainer:
             val_metrics = self._run_epoch(self.val_loader, train=False)
             entry = {"epoch": epoch, "train": train_metrics, "val": val_metrics}
             history.append(entry)
-            save_planner(self.planner, last_path, meta={"epoch": epoch, "config": self.cfg, "val_total": val_metrics["total"]})
+            save_planner(self.planner, last_path, meta={"epoch": epoch, "config": self.cfg, "planner_variant": normalize_planner_variant(self.cfg["model"]), "val_total": val_metrics["total"]})
             if val_metrics["total"] < best_val:
                 best_val = val_metrics["total"]
-                save_planner(self.planner, best_path, meta={"epoch": epoch, "config": self.cfg, "val_total": val_metrics["total"]})
+                save_planner(self.planner, best_path, meta={"epoch": epoch, "config": self.cfg, "planner_variant": normalize_planner_variant(self.cfg["model"]), "val_total": val_metrics["total"]})
             write_json({"history": history, "best_val": best_val, "best_ckpt": str(best_path), "last_ckpt": str(last_path)}, self.work_dir / "metrics.json")
         summary = {"history": history, "best_val": best_val, "best_ckpt": str(best_path), "last_ckpt": str(last_path)}
         write_json(summary, self.work_dir / "metrics.json")

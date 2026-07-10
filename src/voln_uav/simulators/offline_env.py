@@ -5,7 +5,7 @@ from typing import Any
 
 import torch
 
-from voln_uav.common.geometry import l2
+from voln_uav.common.geometry import l2, l2_xy
 
 
 @dataclass
@@ -52,7 +52,7 @@ class RouteReplayEnv:
         return torch.tensor(pts, dtype=torch.float32)
 
     def _oracle_success(self) -> bool:
-        return any(l2(self.states[idx]["position"], self.goal) <= self.success_radius for idx in self.visited_indices)
+        return any(l2_xy(self.states[idx]["position"], self.goal) <= self.success_radius for idx in self.visited_indices)
 
     def step(self, action_waypoints: torch.Tensor | None) -> StepResult:
         if self.done:
@@ -79,7 +79,7 @@ class RouteReplayEnv:
         self.steps_taken += 1
         self.visited_indices.append(self.current_idx)
         state = self.current_state()
-        final_dist = l2(state["position"], self.goal)
+        final_dist = l2_xy(state["position"], self.goal)
         success = final_dist <= self.success_radius
         timeout = self.steps_taken >= self.max_steps or self.current_idx >= len(self.states) - 1
         self.done = success or timeout

@@ -85,8 +85,6 @@ class PlannerDataset(_BenchmarkBase):
             self._resolve_path(record["image"]),
             *self._history_paths(episode, step_idx),
             *[self._resolve_path(p) for p in record["visual_goal"]["V_goal"]],
-            *[self._resolve_path(p) for p in record["visual_goal"]["V_sub"]],
-            *[self._resolve_path(p) for p in record["visual_goal"]["V_beacon"]],
         ]
 
     def iter_unique_image_paths(self) -> list[Path]:
@@ -108,8 +106,6 @@ class PlannerDataset(_BenchmarkBase):
         cur_path = self._resolve_path(record["image"])
         history_paths = self._history_paths(episode, step_idx)
         goal_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_goal"]]
-        subgoal_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_sub"]]
-        beacon_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_beacon"]]
         history_proprio = self._history_proprio(episode, step_idx)
         item = {
             "record_id": record["record_id"],
@@ -120,8 +116,6 @@ class PlannerDataset(_BenchmarkBase):
             "history_proprio": history_proprio,
             "proprio": torch.tensor(record["proprio"], dtype=torch.float32),
             "goal_image_paths": [str(p) for p in goal_paths],
-            "subgoal_image_paths": [str(p) for p in subgoal_paths],
-            "beacon_image_paths": [str(p) for p in beacon_paths],
             "future_waypoints": torch.tensor(record["future_waypoints"], dtype=torch.float32),
             "anchor_waypoint": torch.tensor(record["anchor_waypoint"], dtype=torch.float32),
             "stop": torch.tensor(float(record["stop"]), dtype=torch.float32),
@@ -133,8 +127,6 @@ class PlannerDataset(_BenchmarkBase):
                     "image": load_image_tensor(cur_path, image_size=self.image_size),
                     "history_images": stack_images(history_paths, image_size=self.image_size),
                     "goal_images": stack_images(goal_paths, image_size=self.image_size),
-                    "subgoal_images": stack_images(subgoal_paths, image_size=self.image_size),
-                    "beacon_images": stack_images(beacon_paths, image_size=self.image_size),
                 }
             )
         else:
@@ -143,8 +135,6 @@ class PlannerDataset(_BenchmarkBase):
                     "image_embedding": self._lookup_embedding(cur_path),
                     "history_image_embeddings": torch.stack([self._lookup_embedding(p) for p in history_paths], dim=0),
                     "goal_image_embeddings": torch.stack([self._lookup_embedding(p) for p in goal_paths], dim=0),
-                    "subgoal_image_embeddings": torch.stack([self._lookup_embedding(p) for p in subgoal_paths], dim=0),
-                    "beacon_image_embeddings": torch.stack([self._lookup_embedding(p) for p in beacon_paths], dim=0),
                 }
             )
         return item

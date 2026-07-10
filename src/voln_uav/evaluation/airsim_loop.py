@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from voln_uav.common.geometry import l2, path_length
+from voln_uav.common.geometry import l2, l2_xy, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.evaluation.metrics import METRIC_KEYS, aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
 from voln_uav.evaluation.termination import StationaryDetector
@@ -148,7 +148,9 @@ class AirSimClosedLoopEvaluator:
     def _filter_episodes(self, episodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         scene_allowlist = set(self.cfg.get("scene_allowlist", []) or [])
         difficulty_allowlist = set(self.cfg.get("difficulty_allowlist", []) or [])
-        episode_limit = self.cfg.get("episode_limit")
+        episode_index = max(int(self.cfg.get("episode_index", 0)), 0)
+        episode_stride = max(int(self.cfg.get("episode_stride", 1)), 1)
+        trials = self.cfg.get("trials", self.cfg.get("episode_limit"))
         filtered = []
         for episode in episodes:
             if scene_allowlist and episode["scene_id"] not in scene_allowlist:
@@ -156,9 +158,10 @@ class AirSimClosedLoopEvaluator:
             if difficulty_allowlist and episode.get("difficulty") not in difficulty_allowlist:
                 continue
             filtered.append(episode)
-            if episode_limit is not None and len(filtered) >= int(episode_limit):
-                break
-        return filtered
+        selected = filtered[episode_index::episode_stride]
+        if trials is not None:
+            selected = selected[: max(int(trials), 0)]
+        return selected
 
     def _history(self, live_states: list[dict[str, Any]], memory_len: int) -> list[dict[str, Any]]:
         hist = live_states[-memory_len:]
@@ -239,6 +242,12 @@ class AirSimClosedLoopEvaluator:
                 move_timeout_sec=float(self.cfg.get("move_timeout_sec", 15.0)),
                 settle_sec=float(self.cfg.get("settle_sec", 0.05)),
                 takeoff_timeout_sec=float(self.cfg.get("takeoff_timeout_sec", 10.0)),
+                max_teleport_step_m=float(self.cfg.get("max_teleport_step_m", self.cfg.get("speed", 3.0))),
+                max_teleport_vertical_step_m=float(self.cfg.get("max_teleport_vertical_step_m", 0.5)),
+                teleport_keep_initial_height=bool(self.cfg.get("teleport_keep_initial_height", False)),
+                teleport_hover_after_setpose=bool(self.cfg.get("teleport_hover_after_setpose", True)),
+                teleport_pause_after_setpose=bool(self.cfg.get("teleport_pause_after_setpose", False)),
+                teleport_zero_velocity=bool(self.cfg.get("teleport_zero_velocity", True)),
             )
             try:
                 env.connect(timeout_sec=float(self.cfg.get("connect_timeout_sec", 60.0)))
@@ -268,8 +277,15 @@ class AirSimClosedLoopEvaluator:
     def _evaluate_episode(self, env: AirSimRouteEnv, episode: dict[str, Any]) -> dict[str, Any]:
         episode_id = episode["episode_id"]
         control_mode = str(self.cfg.get("control_mode", "move_to_position"))
+        max_teleport_step_m = float(self.cfg.get("max_teleport_step_m", env.max_teleport_step_m))
+        max_teleport_vertical_step_m = float(self.cfg.get("max_teleport_vertical_step_m", env.max_teleport_vertical_step_m))
+        teleport_keep_initial_height = bool(self.cfg.get("teleport_keep_initial_height", env.teleport_keep_initial_height))
+        teleport_hover_after_setpose = bool(self.cfg.get("teleport_hover_after_setpose", env.teleport_hover_after_setpose))
+        teleport_pause_after_setpose = bool(self.cfg.get("teleport_pause_after_setpose", env.teleport_pause_after_setpose))
+        teleport_zero_velocity = bool(self.cfg.get("teleport_zero_velocity", env.teleport_zero_velocity))
+        reference_bootstrap_steps = max(int(self.cfg.get("reference_bootstrap_steps", 3)), 0)
         fast_reset = bool(self.cfg.get("fast_reset", control_mode == "teleport"))
-        env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
+        reset_stabilization = env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
         beacon_placements = env.place_beacons_for_episode(
             episode,
             config=self.cfg.get("beacon_placement", {}),
@@ -278,13 +294,25 @@ class AirSimClosedLoopEvaluator:
         beacon_path = self.work_dir / "beacons" / f"{episode_id}.json"
         ensure_dir(beacon_path.parent)
         write_json({"episode_id": episode_id, "placements": beacon_placements}, beacon_path)
+        reference_bootstrap = env.teleport_reference_prefix(
+            episode,
+            count=reference_bootstrap_steps,
+            max_teleport_step_m=max_teleport_step_m,
+            max_teleport_vertical_step_m=max_teleport_vertical_step_m,
+            teleport_keep_initial_height=teleport_keep_initial_height,
+            teleport_hover_after_setpose=teleport_hover_after_setpose,
+            teleport_pause_after_setpose=teleport_pause_after_setpose,
+            teleport_zero_velocity=teleport_zero_velocity,
+        )
+        bootstrap_positions = [item["position_after"] for item in reference_bootstrap]
+        bootstrap_reference_offset = max((int(item.get("reference_index", -1)) for item in reference_bootstrap), default=-1)
         live_states: list[dict[str, Any]] = []
-        executed_path: list[list[float]] = []
+        executed_path: list[list[float]] = list(bootstrap_positions)
         action_trace: list[dict[str, Any]] = []
         cycle_times: list[float] = []
         episode_errors = 0
         episode_collisions = 0
-        previous_position: list[float] | None = None
+        previous_position: list[float] | None = bootstrap_positions[-1] if bootstrap_positions else None
         max_steps = int(self.cfg["max_steps"])
         memory_len = int(self.cfg["model"]["memory_len"])
         success_radius = float(self.cfg["success_radius"])
@@ -301,7 +329,7 @@ class AirSimClosedLoopEvaluator:
             reference_path_length_m * path_length_factor,
             float(self.cfg.get("minimum_episode_path_length_m", 1.0)),
         )
-        executed_path_length_m = 0.0
+        executed_path_length_m = sum(float(item.get("executed_distance_m", 0.0)) for item in reference_bootstrap)
         stationary_timeout_sec = float(self.cfg.get("stationary_timeout_sec", 10.0))
         stationary_radius_m = float(self.cfg.get("stationary_radius_m", 0.5))
         stationary_detector = StationaryDetector(timeout_sec=stationary_timeout_sec, radius_m=stationary_radius_m)
@@ -331,7 +359,7 @@ class AirSimClosedLoopEvaluator:
 
             history_states = self._history(live_states, memory_len=memory_len)
             start = time.perf_counter()
-            reference_idx = min((step_idx + 1) * reference_stride, len(episode["states"]) - 1)
+            reference_idx = min(max(bootstrap_reference_offset, 0) + (step_idx + 1) * reference_stride, len(episode["states"]) - 1)
             reference_next = episode["states"][reference_idx]["position"]
             if self.controller == "reference":
                 action = {"stop_prob": 0.0, "controller": "reference"}
@@ -351,21 +379,44 @@ class AirSimClosedLoopEvaluator:
             cycle_times.append(cycle_time)
             if invalid or cycle_time > float(self.cfg["budget_sec"]):
                 episode_errors += 1
+            movement = env.move_to_waypoint(
+                obs.position,
+                waypoint,
+                control_mode=control_mode,
+                max_teleport_step_m=max_teleport_step_m,
+                max_teleport_vertical_step_m=max_teleport_vertical_step_m,
+                teleport_keep_initial_height=teleport_keep_initial_height,
+                teleport_hover_after_setpose=teleport_hover_after_setpose,
+                teleport_pause_after_setpose=teleport_pause_after_setpose,
+                teleport_zero_velocity=teleport_zero_velocity,
+            )
+            post_move_position = env.current_position()
             action_trace.append(
                 {
                     "step": step_idx,
                     "position": obs.position,
                     "waypoint": [float(v) for v in waypoint[:3]],
+                    "executed_waypoint": [float(v) for v in movement.get("executed_waypoint", waypoint)[:3]],
+                    "height_limited_waypoint": [float(v) for v in movement.get("height_limited_waypoint", waypoint)[:3]],
                     "reference_next": reference_next,
                     "controller": str(action.get("controller", self.controller)),
                     "stop_prob": float(action.get("stop_prob", 0.0)),
                     "cycle_time": cycle_time,
                     "invalid": invalid,
                     "error": action.get("error"),
+                    "teleport_clipped": bool(movement.get("teleport_clipped", False)),
+                    "requested_distance_m": float(movement.get("requested_distance_m", 0.0)),
+                    "executed_distance_m": float(movement.get("executed_distance_m", 0.0)),
+                    "max_teleport_step_m": movement.get("max_teleport_step_m"),
+                    "max_teleport_vertical_step_m": movement.get("max_teleport_vertical_step_m"),
+                    "teleport_vertical_clipped": bool(movement.get("teleport_vertical_clipped", False)),
+                    "teleport_height_locked": bool(movement.get("teleport_height_locked", False)),
+                    "teleport_height_adjusted": bool(movement.get("teleport_height_adjusted", False)),
+                    "teleport_stabilization": movement.get("teleport_stabilization", {}),
+                    "requested_vertical_delta_m": float(movement.get("requested_vertical_delta_m", 0.0)),
+                    "executed_vertical_delta_m": float(movement.get("executed_vertical_delta_m", 0.0)),
                 }
             )
-            env.move_to_waypoint(obs.position, waypoint, control_mode=control_mode)
-            post_move_position = env.current_position()
             executed_path_length_m += l2(obs.position, post_move_position)
             if AirSimRouteEnv.reached_goal(post_move_position, episode, success_radius):
                 executed_path.append(post_move_position)
@@ -385,7 +436,7 @@ class AirSimClosedLoopEvaluator:
                 break
 
             if step_idx >= min_steps_before_stop and float(action.get("stop_prob", 0.0)) >= stop_threshold:
-                next_dist = l2(waypoint, episode["states"][-1]["position"])
+                next_dist = l2_xy(post_move_position, episode["states"][-1]["position"])
                 if next_dist <= success_radius:
                     termination_reason = "policy_stop"
                     break
@@ -408,8 +459,17 @@ class AirSimClosedLoopEvaluator:
                 "executed_path": executed_path,
                 "reference_path": ref_path,
                 "action_trace": action_trace,
+                "reference_bootstrap": reference_bootstrap,
+                "reset_stabilization": reset_stabilization,
                 "beacon_placements": beacon_placements,
                 "control_mode": control_mode,
+                "max_teleport_step_m": max_teleport_step_m,
+                "max_teleport_vertical_step_m": max_teleport_vertical_step_m,
+                "teleport_keep_initial_height": teleport_keep_initial_height,
+                "teleport_hover_after_setpose": teleport_hover_after_setpose,
+                "teleport_pause_after_setpose": teleport_pause_after_setpose,
+                "teleport_zero_velocity": teleport_zero_velocity,
+                "reference_bootstrap_steps": reference_bootstrap_steps,
                 "fast_reset": fast_reset,
                 "reference_time_sec": reference_time_sec,
                 "timeout_sec": timeout_sec,
@@ -438,6 +498,14 @@ class AirSimClosedLoopEvaluator:
             "beacons_placed": sum(1 for item in beacon_placements if item.get("placed")),
             "beacons_requested": len(beacon_placements),
             "reference_time_sec": reference_time_sec,
+            "max_teleport_step_m": max_teleport_step_m,
+            "max_teleport_vertical_step_m": max_teleport_vertical_step_m,
+            "teleport_keep_initial_height": teleport_keep_initial_height,
+            "teleport_hover_after_setpose": teleport_hover_after_setpose,
+            "teleport_pause_after_setpose": teleport_pause_after_setpose,
+            "teleport_zero_velocity": teleport_zero_velocity,
+            "reference_bootstrap_steps": reference_bootstrap_steps,
+            "reference_bootstrap_count": len(reference_bootstrap),
             "timeout_sec": timeout_sec,
             "episode_elapsed_sec": episode_elapsed_sec,
             "reference_path_length_m": reference_path_length_m,

@@ -181,25 +181,19 @@ class VoLNPlanner(nn.Module):
             history_img_emb = batch["history_image_embeddings"]
             current_emb = batch["image_embedding"]
             goal_emb = batch["goal_image_embeddings"].mean(dim=1)
-            subgoal_emb = batch["subgoal_image_embeddings"].mean(dim=1)
-            beacon_emb = batch["beacon_image_embeddings"].mean(dim=1)
         else:
             history_img_emb = self.encode_images(batch["history_images"], batch.get("history_image_paths"))
             current_emb = self.encode_images(batch["image"], batch.get("image_path"))
             goal_emb = self.encode_images(batch["goal_images"], batch.get("goal_image_paths")).mean(dim=1)
-            subgoal_emb = self.encode_images(batch["subgoal_images"], batch.get("subgoal_image_paths")).mean(dim=1)
-            beacon_emb = self.encode_images(batch["beacon_images"], batch.get("beacon_image_paths")).mean(dim=1)
         semantic_embeds, semantic_names = self._retrieve_semantic_tokens(current_emb)
 
         hist_inputs = torch.cat([history_img_emb, batch["history_proprio"]], dim=-1)
         hist_tokens = self.history_proj(hist_inputs)
         goal_token = self.image_proj(goal_emb).unsqueeze(1)
-        subgoal_token = self.image_proj(subgoal_emb).unsqueeze(1)
-        beacon_token = self.image_proj(beacon_emb).unsqueeze(1)
         semantic_tokens = self.image_proj(semantic_embeds)
         proprio_token = self.proprio_proj(batch["proprio"]).unsqueeze(1)
         plan_token = self.plan_token.expand(current_emb.shape[0], -1, -1)
-        seq = torch.cat([plan_token, hist_tokens, goal_token, subgoal_token, beacon_token, semantic_tokens, proprio_token], dim=1)
+        seq = torch.cat([plan_token, hist_tokens, goal_token, semantic_tokens, proprio_token], dim=1)
         aux = {
             "semantic_names": semantic_names,
             "current_embedding": current_emb,

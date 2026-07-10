@@ -11,6 +11,10 @@ def l2(a: Vec3, b: Vec3) -> float:
     return math.sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b)))
 
 
+def l2_xy(a: Vec3, b: Vec3) -> float:
+    return math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1]))
+
+
 def path_length(points: Sequence[Vec3]) -> float:
     if len(points) <= 1:
         return 0.0

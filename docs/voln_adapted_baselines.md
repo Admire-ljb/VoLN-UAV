@@ -1,0 +1,87 @@
+# VoLN-adapted learned baselines
+
+This repository includes three optional learned baselines adapted from common VLN-style navigation families:
+
+- `Seq2Seq-VG` (`model.planner_variant: seq2seq`)
+- `CMA-VG` (`model.planner_variant: cma`)
+- `LAG-VG` (`model.planner_variant: lag`)
+
+`VG` means visual-goal adapted. These are not direct language-instruction replicas. The original language tokens are replaced by the VoLN-UAV visual-goal inputs already used by the planner pipeline:
+
+- current observation image embedding
+- history image embeddings and proprioception
+- visual goal image embedding
+- retrieved semantic tokens from the semantic bank
+- current proprioception / odometry vector
+
+All three baselines predict the same outputs as the main planner:
+
+- anchor waypoint
+- future waypoint sequence
+- stop logit
+- semantic names for logging
+
+## Methods
+
+### Seq2Seq-VG
+
+`Seq2Seq-VG` uses a GRU encoder over the visual history and proprioception, then a recurrent decoder to generate future waypoints conditioned on the current image, goal image, and current proprioception.
+
+### CMA-VG
+
+`CMA-VG` uses cross-modal attention. The current visual-goal state is the query; history tokens, goal token, semantic tokens, and proprioception token are the memory.
+
+### LAG-VG
+
+`LAG-VG` is a landmark/goal-guided attention baseline. It separately attends to history and semantic landmark tokens, then gates between history, semantic-landmark, and goal features before predicting waypoints.
+
+## Training
+
+Use the existing planner training entry point and switch only `CONFIG`.
+
+```powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:CONFIG="configs\train_seq2seq_dataset_release.yaml"
+.\scripts\run_train_planner.cmd
+
+$env:CONFIG="configs\train_cma_dataset_release.yaml"
+.\scripts\run_train_planner.cmd
+
+$env:CONFIG="configs\train_lag_dataset_release.yaml"
+.\scripts\run_train_planner.cmd
+```
+
+Each method writes to a separate run directory:
+
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_dataset_release`
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_cma_dataset_release`
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_dataset_release`
+
+## Offline evaluation
+
+```powershell
+$env:CONFIG="configs\eval_offline_seq2seq_dataset_release.yaml"
+.\scripts\run_eval_offline.cmd
+
+$env:CONFIG="configs\eval_offline_cma_dataset_release.yaml"
+.\scripts\run_eval_offline.cmd
+
+$env:CONFIG="configs\eval_offline_lag_dataset_release.yaml"
+.\scripts\run_eval_offline.cmd
+```
+
+## AirSim evaluation
+
+```powershell
+$env:CONFIG="configs\eval_airsim_seq2seq_dataset_release.yaml"
+.\scripts\run_airsim_eval.cmd
+
+$env:CONFIG="configs\eval_airsim_cma_dataset_release.yaml"
+.\scripts\run_airsim_eval.cmd
+
+$env:CONFIG="configs\eval_airsim_lag_dataset_release.yaml"
+.\scripts\run_airsim_eval.cmd
+```
+
+The AirSim configs keep the same episode switching, beacon placement, target placement, and half-meter SR logic as the main AirSim evaluation config.

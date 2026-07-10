@@ -22,8 +22,57 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--device", default=default_device())
     parser.add_argument("--preflight", action="store_true", help="Check AirSim dependencies and scene access without loading the model.")
+    parser.add_argument("--trials", type=int, help="Number of episodes to run after episode-index/stride filtering.")
+    parser.add_argument("--episode-index", type=int, help="First episode index after split/scene/difficulty filtering.")
+    parser.add_argument("--episode-stride", type=int, help="Stride between evaluated episodes after filtering.")
+    parser.add_argument("--reference-stride", type=int, help="Stride used when following/logging the reference trajectory.")
+    parser.add_argument(
+        "--control-mode",
+        choices=["move_to_position", "teleport"],
+        help="How to execute each predicted waypoint in AirSim.",
+    )
+    parser.add_argument("--fast-reset", action="store_true", help="Reset by pose only instead of taking off before every episode.")
+    parser.add_argument("--settle-sec", type=float, help="Seconds to wait after each action/reset.")
+    parser.add_argument("--max-teleport-step-m", type=float, help="Maximum setVehiclePose displacement per teleport action.")
+    parser.add_argument("--max-teleport-vertical-step-m", type=float, help="Maximum vertical displacement per teleport action.")
+    parser.add_argument("--reference-bootstrap-steps", type=int, help="Teleport through this many reference points before policy actions.")
+    parser.add_argument("--disable-teleport-keep-initial-height", action="store_true", help="Compatibility flag; teleport no longer pins altitude to the episode start height.")
+    parser.add_argument("--disable-teleport-hover-after-setpose", action="store_true", help="Do not call hoverAsync after teleport setVehiclePose.")
+    parser.add_argument("--disable-teleport-pause-after-setpose", action="store_true", help="Compatibility flag; teleport no longer pauses physics after setVehiclePose.")
+    parser.add_argument("--disable-teleport-zero-velocity", action="store_true", help="Do not zero kinematics after teleport setVehiclePose.")
+    parser.add_argument("--work-dir", help="Directory for metrics, trajectories, and beacon placement logs.")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    if args.trials is not None:
+        cfg["trials"] = args.trials
+    if args.episode_index is not None:
+        cfg["episode_index"] = args.episode_index
+    if args.episode_stride is not None:
+        cfg["episode_stride"] = args.episode_stride
+    if args.reference_stride is not None:
+        cfg["reference_stride"] = args.reference_stride
+    if args.control_mode is not None:
+        cfg["control_mode"] = args.control_mode
+    if args.fast_reset:
+        cfg["fast_reset"] = True
+    if args.settle_sec is not None:
+        cfg["settle_sec"] = args.settle_sec
+    if args.max_teleport_step_m is not None:
+        cfg["max_teleport_step_m"] = args.max_teleport_step_m
+    if args.max_teleport_vertical_step_m is not None:
+        cfg["max_teleport_vertical_step_m"] = args.max_teleport_vertical_step_m
+    if args.reference_bootstrap_steps is not None:
+        cfg["reference_bootstrap_steps"] = args.reference_bootstrap_steps
+    if args.disable_teleport_keep_initial_height:
+        cfg["teleport_keep_initial_height"] = False
+    if args.disable_teleport_hover_after_setpose:
+        cfg["teleport_hover_after_setpose"] = False
+    if args.disable_teleport_pause_after_setpose:
+        cfg["teleport_pause_after_setpose"] = False
+    if args.disable_teleport_zero_velocity:
+        cfg["teleport_zero_velocity"] = False
+    if args.work_dir is not None:
+        cfg["work_dir"] = args.work_dir
     from voln_uav.evaluation.airsim_loop import AirSimClosedLoopEvaluator, check_airsim_readiness
 
     if args.preflight:

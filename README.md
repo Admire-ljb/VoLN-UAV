@@ -1,6 +1,6 @@
 # VoLN-UAV: Vision-only Language-Model-based Navigation for UAVs
 
-VoLN-UAV provides the benchmark construction pipeline, dataset release tools, training code, offline evaluation, and AirSim collection utilities for vision-only UAV navigation. The benchmark removes episode-level language instructions and evaluates agents that navigate from egocentric RGB observations, proprioception, visual goals, and visual-semantic beacons.
+VoLN-UAV provides the benchmark construction pipeline, dataset release tools, training code, offline evaluation, and AirSim collection utilities for vision-only UAV navigation. The benchmark removes episode-level language instructions and evaluates agents that navigate from egocentric RGB observations with embedded visual beacons, proprioception, and visual goal references.
 
 ## Hugging Face Resources
 

@@ -39,3 +39,12 @@ def test_sr_uses_final_episode_position_with_half_meter_radius():
 
     assert out["SR"] == 0.0
     assert out["OSR"] == 1.0
+
+
+def test_success_radius_ignores_altitude_difference():
+    ref = [[0, 0, 0], [1, 0, 0], [2, 0, 0]]
+    pred = [[0, 0, 0], [2.2, 0.0, 100.0]]
+    out = summarize_episode(pred, ref, goal=[2, 0, 0], success_radius=0.5, shortest_path_length=2.0)
+
+    assert out["SR"] == 1.0
+    assert out["OSR"] == 1.0

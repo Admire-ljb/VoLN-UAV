@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from voln_uav.common.geometry import l2, path_length
+from voln_uav.common.geometry import l2, l2_xy, path_length
 
 
 Vec3 = Sequence[float]
@@ -20,12 +20,12 @@ def navigation_error(pred_path: Sequence[Vec3], goal: Vec3) -> float:
 
 
 def success(pred_path: Sequence[Vec3], goal: Vec3, radius: float) -> bool:
-    return bool(pred_path) and l2(pred_path[-1], goal) <= radius
+    return bool(pred_path) and l2_xy(pred_path[-1], goal) <= radius
 
 
 
 def oracle_success(pred_path: Sequence[Vec3], goal: Vec3, radius: float) -> bool:
-    return any(l2(p, goal) <= radius for p in pred_path)
+    return any(l2_xy(p, goal) <= radius for p in pred_path)
 
 
 
