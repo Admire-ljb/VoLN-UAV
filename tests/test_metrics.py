@@ -30,3 +30,12 @@ def test_aggregate_by_difficulty_orders_paper_groups():
 def test_reference_travel_time_uses_path_length_and_speed():
     ref = [[0, 0, 0], [3, 4, 0], [6, 4, 0]]
     assert reference_travel_time(ref, speed_mps=2.0) == 4.0
+
+
+def test_sr_uses_final_episode_position_with_half_meter_radius():
+    ref = [[0, 0, 0], [1, 0, 0], [2, 0, 0]]
+    pred = [[0, 0, 0], [2.2, 0, 0], [1.0, 0, 0]]
+    out = summarize_episode(pred, ref, goal=[2, 0, 0], success_radius=0.5, shortest_path_length=2.0)
+
+    assert out["SR"] == 0.0
+    assert out["OSR"] == 1.0

@@ -23,7 +23,7 @@ minimum_episode_path_length_m: 1.0
 stationary_timeout_sec: 10.0
 stationary_radius_m: 0.5
 max_steps: 10000
-success_radius: 20.0
+success_radius: 0.5
 stop_probability: 0.7
 min_steps_before_stop: 3
 
