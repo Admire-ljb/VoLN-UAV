@@ -12,7 +12,8 @@ from voln_uav.common.config import load_config
 from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.evaluation.airsim_loop import check_airsim_readiness
-from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, summarize_episode
+from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
+from voln_uav.evaluation.termination import StationaryDetector
 from voln_uav.simulators.airsim_env import AirSimRouteEnv
 
 
@@ -86,20 +87,58 @@ def _run_targets(
     episode: dict[str, Any],
     targets: list[list[float]],
     control_mode: str,
-) -> tuple[list[list[float]], list[float], int]:
+    timeout_sec: float,
+    path_length_limit_m: float,
+    goal: list[float],
+    success_radius: float,
+    stationary_timeout_sec: float,
+    stationary_radius_m: float,
+) -> tuple[list[list[float]], list[float], int, float, str, float, float]:
     executed = [_position(env)]
     cycle_times: list[float] = []
     collisions = 0
+    executed_path_length_m = 0.0
+    started_at = time.perf_counter()
+    stationary_detector = StationaryDetector(timeout_sec=stationary_timeout_sec, radius_m=stationary_radius_m)
+    stationary_detector.update(executed[0], started_at)
+    termination_reason = "completed_targets"
     for target in targets:
+        if time.perf_counter() - started_at >= timeout_sec:
+            termination_reason = "timeout"
+            break
         current = _position(env)
+        if l2(current, goal) <= success_radius:
+            termination_reason = "goal_reached"
+            break
+        if executed_path_length_m >= path_length_limit_m:
+            termination_reason = "path_length_limit"
+            break
+        if stationary_detector.update(current, time.perf_counter()):
+            termination_reason = "stationary_timeout"
+            break
+
         start = time.perf_counter()
         env.move_to_waypoint(current, target, control_mode=control_mode)
         cycle_times.append(time.perf_counter() - start)
         pos = _position(env)
+        executed_path_length_m += l2(current, pos)
         executed.append(pos)
         if _collision(env):
             collisions += 1
-    return executed, cycle_times, collisions
+        if l2(pos, goal) <= success_radius:
+            termination_reason = "goal_reached"
+            break
+        if time.perf_counter() - started_at >= timeout_sec:
+            termination_reason = "timeout"
+            break
+        if executed_path_length_m >= path_length_limit_m:
+            termination_reason = "path_length_limit"
+            break
+        if stationary_detector.update(pos, time.perf_counter()):
+            termination_reason = "stationary_timeout"
+            break
+    episode_elapsed_sec = time.perf_counter() - started_at
+    return executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_detector.duration_sec
 
 
 def _summarize(details: list[dict[str, Any]]) -> dict[str, Any]:
@@ -144,7 +183,7 @@ def _paper_markdown(name: str, summary: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run online AirSim reference/random baselines without teleporting between waypoints.")
+    parser = argparse.ArgumentParser(description="Run online AirSim reference/random baselines with physical or teleport control.")
     parser.add_argument("--config", default="configs/eval_airsim_dataset_release.yaml")
     parser.add_argument("--baseline", choices=["reference", "random"], required=True)
     parser.add_argument("--trials", type=int, default=10)
@@ -154,6 +193,12 @@ def main() -> None:
     parser.add_argument("--reference-stride", type=int, default=1)
     parser.add_argument("--random-steps", type=int)
     parser.add_argument("--control-mode", default="move_to_position", choices=["move_to_position", "teleport"])
+    parser.add_argument("--fast-reset", action="store_true", help="Reset each episode with simSetVehiclePose only, skipping takeoff/moveToPositionAsync.")
+    parser.add_argument("--settle-sec", type=float, help="Override simulator settle time after each pose/action update.")
+    parser.add_argument("--episode-timeout-factor", type=float, help="End an episode after this multiple of reference travel time.")
+    parser.add_argument("--episode-path-length-factor", type=float, help="End an episode after this multiple of reference path length.")
+    parser.add_argument("--stationary-timeout-sec", type=float, help="End an episode after the vehicle stays within stationary radius for this many seconds; <=0 disables it.")
+    parser.add_argument("--stationary-radius-m", type=float, help="Radius used to decide whether the vehicle is stationary.")
     parser.add_argument("--work-dir")
     parser.add_argument("--no-beacons", action="store_true")
     args = parser.parse_args()
@@ -180,30 +225,55 @@ def main() -> None:
         work_dir=run_dir,
         speed=float(cfg.get("speed", 3.0)),
         move_timeout_sec=float(cfg.get("move_timeout_sec", 15.0)),
-        settle_sec=float(cfg.get("settle_sec", 0.05)),
+        settle_sec=float(args.settle_sec if args.settle_sec is not None else cfg.get("settle_sec", 0.05)),
         takeoff_timeout_sec=float(cfg.get("takeoff_timeout_sec", 10.0)),
     )
     env.connect(timeout_sec=float(cfg.get("connect_timeout_sec", 60.0)))
     try:
         for trial, episode in enumerate(selected):
             episode_id = str(episode["episode_id"])
-            env.reset_to_episode_start(episode)
+            fast_reset = bool(args.fast_reset or cfg.get("fast_reset", False) or str(args.control_mode) == "teleport")
+            env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
             beacon_cfg = dict(cfg.get("beacon_placement", {}) or {})
             if args.no_beacons:
                 beacon_cfg["enabled"] = False
             placements = env.place_beacons_for_episode(episode, beacon_cfg, seed=int(cfg.get("seed", 0)))
+            ref_path = [state["position"] for state in episode["states"]]
+            reference_path_length_m = path_length(ref_path)
+            reference_time_sec = reference_travel_time(ref_path, env.speed)
+            timeout_factor = float(args.episode_timeout_factor if args.episode_timeout_factor is not None else cfg.get("episode_timeout_factor", 2.0))
+            timeout_sec = max(reference_time_sec * timeout_factor, float(cfg.get("minimum_episode_timeout_sec", 1.0)))
+            path_length_factor = float(args.episode_path_length_factor if args.episode_path_length_factor is not None else cfg.get("episode_path_length_factor", 2.0))
+            path_length_limit_m = max(
+                reference_path_length_m * path_length_factor,
+                float(cfg.get("minimum_episode_path_length_m", 1.0)),
+            )
+            goal = [float(v) for v in episode["states"][-1]["position"][:3]]
+            success_radius = float(cfg["success_radius"])
+            stationary_timeout_sec = float(args.stationary_timeout_sec if args.stationary_timeout_sec is not None else cfg.get("stationary_timeout_sec", 10.0))
+            stationary_radius_m = float(args.stationary_radius_m if args.stationary_radius_m is not None else cfg.get("stationary_radius_m", 0.5))
             if args.baseline == "reference":
                 targets = _reference_targets(episode, stride=int(args.reference_stride))
             else:
                 rng = random.Random(int(args.seed) + trial * 1009)
                 targets = _random_targets(episode, rng, steps=args.random_steps, stride=int(args.reference_stride))
-            executed, cycle_times, collisions = _run_targets(env, episode, targets, control_mode=str(args.control_mode))
-            ref_path = [state["position"] for state in episode["states"]]
+            executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_duration_sec = _run_targets(
+                env,
+                episode,
+                targets,
+                control_mode=str(args.control_mode),
+                timeout_sec=timeout_sec,
+                path_length_limit_m=path_length_limit_m,
+                goal=goal,
+                success_radius=success_radius,
+                stationary_timeout_sec=stationary_timeout_sec,
+                stationary_radius_m=stationary_radius_m,
+            )
             metrics = summarize_episode(
                 pred_path=executed,
                 ref_path=ref_path,
-                goal=episode["states"][-1]["position"],
-                success_radius=float(cfg["success_radius"]),
+                goal=goal,
+                success_radius=success_radius,
                 shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
             )
             trajectory_file = run_dir / "trajectories" / f"{args.baseline}_{trial:03d}_{episode_id}.json"
@@ -216,6 +286,16 @@ def main() -> None:
                     "targets": targets,
                     "executed_path": executed,
                     "reference_path": ref_path,
+                    "reference_time_sec": reference_time_sec,
+                    "timeout_sec": timeout_sec,
+                    "episode_elapsed_sec": episode_elapsed_sec,
+                    "reference_path_length_m": reference_path_length_m,
+                    "path_length_limit_m": path_length_limit_m,
+                    "executed_path_length_m": executed_path_length_m,
+                    "stationary_timeout_sec": stationary_timeout_sec,
+                    "stationary_radius_m": stationary_radius_m,
+                    "stationary_duration_sec": stationary_duration_sec,
+                    "termination_reason": termination_reason,
                 },
                 trajectory_file,
             )
@@ -228,13 +308,23 @@ def main() -> None:
                 **metrics,
                 "cycle_times": cycle_times,
                 "collisions": collisions,
+                "reference_time_sec": reference_time_sec,
+                "timeout_sec": timeout_sec,
+                "episode_elapsed_sec": episode_elapsed_sec,
+                "reference_path_length_m": reference_path_length_m,
+                "path_length_limit_m": path_length_limit_m,
+                "executed_path_length_m": executed_path_length_m,
+                "stationary_timeout_sec": stationary_timeout_sec,
+                "stationary_radius_m": stationary_radius_m,
+                "stationary_duration_sec": stationary_duration_sec,
+                "termination_reason": termination_reason,
                 "beacons_placed": sum(1 for item in placements if item.get("placed")),
                 "beacons_requested": len(placements),
                 "trajectory_file": str(trajectory_file),
                 "beacon_file": str(beacon_file),
             }
             details.append(detail)
-            print(json.dumps({"trial": trial + 1, "trials": len(selected), **{k: detail[k] for k in METRIC_KEYS}}, ensure_ascii=False), flush=True)
+            print(json.dumps({"trial": trial + 1, "trials": len(selected), "termination_reason": termination_reason, **{k: detail[k] for k in METRIC_KEYS}}, ensure_ascii=False), flush=True)
     finally:
         env.close()
 

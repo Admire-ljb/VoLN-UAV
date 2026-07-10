@@ -60,6 +60,12 @@ def spl(pred_path: Sequence[Vec3], goal: Vec3, success_radius: float, shortest_p
 
 
 
+def reference_travel_time(ref_path: Sequence[Vec3], speed_mps: float) -> float:
+    """Return the reproducible expert travel time at the configured simulator speed."""
+    speed = max(float(speed_mps), 1e-6)
+    return path_length(ref_path) / speed
+
+
 def summarize_episode(pred_path: Sequence[Vec3], ref_path: Sequence[Vec3], goal: Vec3, success_radius: float, shortest_path_length: float) -> dict[str, float]:
     return {
         "NE": navigation_error(pred_path, goal),

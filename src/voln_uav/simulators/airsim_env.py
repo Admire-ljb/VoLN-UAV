@@ -11,6 +11,8 @@ from voln_uav.common.geometry import l2
 from voln_uav.common.io import ensure_dir
 from voln_uav.simulators.beacon_placement import SIGN_ASSET_BASE, TARGET_TAG, plan_route_beacons, stable_episode_seed
 
+TARGET_ASSET_ALIASES = (TARGET_TAG, "target", "people", "person")
+
 
 @dataclass
 class AirSimStep:
@@ -95,7 +97,7 @@ class AirSimRouteEnv:
         except Exception:
             pass
 
-    def reset_to_episode_start(self, episode: dict[str, Any]) -> None:
+    def reset_to_episode_start(self, episode: dict[str, Any], ensure_flying: bool = True) -> None:
         first = episode["states"][0]
         x, y, z = [float(v) for v in first["position"]]
         yaw = float(first.get("yaw", 0.0))
@@ -106,7 +108,8 @@ class AirSimRouteEnv:
         )
         self.client.simSetVehiclePose(pose, True)
         time.sleep(self.settle_sec)
-        self._ensure_flying_at_start([x, y, z])
+        if ensure_flying:
+            self._ensure_flying_at_start([x, y, z])
 
     def _ensure_flying_at_start(self, position: list[float]) -> None:
         self.client.enableApiControl(True)
@@ -140,17 +143,22 @@ class AirSimRouteEnv:
 
     def _scene_beacon_objects(self) -> list[str]:
         if self._beacon_object_cache is None:
-            bases = list(SIGN_ASSET_BASE.values()) + [TARGET_TAG, "target"]
+            bases = list(SIGN_ASSET_BASE.values()) + list(TARGET_ASSET_ALIASES)
             objects = self.client.simListSceneObjects()
             self._beacon_object_cache = [name for name in objects if any(base.lower() in name.lower() for base in bases)]
         return list(self._beacon_object_cache)
 
     def _pick_beacon_object(self, tag: str, used: set[str], rng: random.Random) -> str | None:
         names = [name for name in self._scene_beacon_objects() if name not in used]
-        bases = [TARGET_TAG, "target"] if tag == TARGET_TAG else [SIGN_ASSET_BASE.get(tag, tag)]
+        bases = list(TARGET_ASSET_ALIASES) if tag == TARGET_TAG else [SIGN_ASSET_BASE.get(tag, tag)]
         candidates = [name for name in names if any(base.lower() in name.lower() for base in bases)]
         rng.shuffle(candidates)
         return candidates[0] if candidates else None
+
+    def current_position(self) -> list[float]:
+        state = self.client.getMultirotorState()
+        pos = state.kinematics_estimated.position
+        return [float(pos.x_val), float(pos.y_val), float(pos.z_val)]
 
     def _pose_from_plan(self, placement: dict[str, Any]) -> Any:
         x, y, z = [float(v) for v in placement["position"][:3]]

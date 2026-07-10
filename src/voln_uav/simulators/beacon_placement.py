@@ -234,7 +234,7 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
         target_pose = pose_from_path_point(
             position=target_ref["position"],
             yaw_deg=float(target_ref["yaw_deg"]),
-            forward_m=float(cfg.get("target_distance_m", 30.0)),
+            forward_m=float(cfg.get("target_distance_m", 0.0)),
             lateral_m=float(cfg.get("target_lateral_m", 0.0)),
             vertical_ned_m=float(cfg.get("target_vertical_ned_m", 0.0)),
             yaw_add_deg=float(cfg.get("target_yaw_add_deg", 180.0)),
@@ -247,7 +247,7 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "ref_index": target_idx,
                 "tag": TARGET_TAG,
                 "reason": "end of route",
-                "forward_m": float(cfg.get("target_distance_m", 30.0)),
+                "forward_m": float(cfg.get("target_distance_m", 0.0)),
                 "lateral_m": float(cfg.get("target_lateral_m", 0.0)),
                 "vertical_ned_m": float(cfg.get("target_vertical_ned_m", 0.0)),
                 **target_pose,

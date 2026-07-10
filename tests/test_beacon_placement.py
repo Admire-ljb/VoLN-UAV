@@ -28,5 +28,6 @@ def test_plan_route_beacons_is_reproducible_and_adds_target() -> None:
     assert len(first) == 4
     assert first[-1]["tag"] == TARGET_TAG
     assert first[-1]["kind"] == "target"
+    assert first[-1]["position"] == [0.0, 20.0, -16.0]
     assert all("position" in item and len(item["position"]) == 3 for item in first)
     assert all(item["kind"] in {"route_beacon", "target"} for item in first)

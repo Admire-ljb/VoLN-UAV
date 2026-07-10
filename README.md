@@ -226,7 +226,7 @@ python -m voln_uav.cli.eval_airsim \
 
 The AirSim evaluator connects to the running simulator, resets each episode to its start pose, captures live RGB observations, executes predicted waypoints with `moveToPositionAsync`, and writes metrics plus executed trajectories to `D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release`.
 
-For trajectory-level sanity checks, run the online reference and random-flight baselines. Both execute waypoints through AirSim movement commands by default:
+For trajectory-level sanity checks, run the online reference and random-flight baselines. The default helper uses AirSim movement commands (`moveToPositionAsync`) unless you pass `--control-mode teleport`:
 
 ```bat
 set BASELINE=reference
@@ -236,6 +236,33 @@ scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_
 set BASELINE=random
 set TRIALS=10
 scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_random_flight_10
+```
+
+For faster test-set sweeps, use the set-pose helper. It resets each episode with `simSetVehiclePose`, executes each action with `simSetVehiclePose`, and skips settle delay by default. This is useful for fast algorithm/metric checks, but it is not a physical flight-dynamics evaluation:
+
+```powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+.\scripts\run_fast_online_baseline.cmd
+
+$env:BASELINE="random"
+$env:TRIALS="10"
+$env:RANDOM_STEPS="80"
+.\scripts\run_fast_online_baseline.cmd --work-dir D:\VoLN_dataset\VoLN-UAV-runs\random_test_10_fast
+```
+
+The fast helper accepts the same extra options as `run_online_baseline.cmd`. Common overrides are:
+
+```powershell
+.\scripts\run_fast_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --stationary-timeout-sec 10 `
+  --stationary-radius-m 0.5 `
+  --settle-sec 0.02
 ```
 
 To summarize a run directory as paper-style metrics:

@@ -8,9 +8,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from voln_uav.common.geometry import l2
+from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
-from voln_uav.evaluation.metrics import METRIC_KEYS, aggregate_by_difficulty, aggregate_metrics, summarize_episode
+from voln_uav.evaluation.metrics import METRIC_KEYS, aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
+from voln_uav.evaluation.termination import StationaryDetector
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.airsim_env import AirSimRouteEnv
 
@@ -266,7 +267,9 @@ class AirSimClosedLoopEvaluator:
 
     def _evaluate_episode(self, env: AirSimRouteEnv, episode: dict[str, Any]) -> dict[str, Any]:
         episode_id = episode["episode_id"]
-        env.reset_to_episode_start(episode)
+        control_mode = str(self.cfg.get("control_mode", "move_to_position"))
+        fast_reset = bool(self.cfg.get("fast_reset", control_mode == "teleport"))
+        env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
         beacon_placements = env.place_beacons_for_episode(
             episode,
             config=self.cfg.get("beacon_placement", {}),
@@ -287,10 +290,29 @@ class AirSimClosedLoopEvaluator:
         success_radius = float(self.cfg["success_radius"])
         stop_threshold = float(self.cfg.get("stop_probability", 0.7))
         min_steps_before_stop = int(self.cfg.get("min_steps_before_stop", 3))
-        control_mode = str(self.cfg.get("control_mode", "move_to_position"))
         reference_stride = max(int(self.cfg.get("reference_stride", 1)), 1)
+        ref_path = [state["position"] for state in episode["states"]]
+        reference_path_length_m = path_length(ref_path)
+        reference_time_sec = reference_travel_time(ref_path, env.speed)
+        timeout_factor = float(self.cfg.get("episode_timeout_factor", 2.0))
+        timeout_sec = max(reference_time_sec * timeout_factor, float(self.cfg.get("minimum_episode_timeout_sec", 1.0)))
+        path_length_factor = float(self.cfg.get("episode_path_length_factor", 2.0))
+        path_length_limit_m = max(
+            reference_path_length_m * path_length_factor,
+            float(self.cfg.get("minimum_episode_path_length_m", 1.0)),
+        )
+        executed_path_length_m = 0.0
+        stationary_timeout_sec = float(self.cfg.get("stationary_timeout_sec", 10.0))
+        stationary_radius_m = float(self.cfg.get("stationary_radius_m", 0.5))
+        stationary_detector = StationaryDetector(timeout_sec=stationary_timeout_sec, radius_m=stationary_radius_m)
+        episode_started_at = time.perf_counter()
+        termination_reason = "max_steps"
+
 
         for step_idx in range(max_steps):
+            if time.perf_counter() - episode_started_at >= timeout_sec:
+                termination_reason = "timeout"
+                break
             obs = env.current_state(episode_id, step_idx, previous_position=previous_position)
             previous_position = obs.position
             live_states.append(obs.state)
@@ -298,6 +320,13 @@ class AirSimClosedLoopEvaluator:
             if obs.collision:
                 episode_collisions += 1
             if AirSimRouteEnv.reached_goal(obs.position, episode, success_radius):
+                termination_reason = "goal_reached"
+                break
+            if executed_path_length_m >= path_length_limit_m:
+                termination_reason = "path_length_limit"
+                break
+            if stationary_detector.update(obs.position, time.perf_counter()):
+                termination_reason = "stationary_timeout"
                 break
 
             history_states = self._history(live_states, memory_len=memory_len)
@@ -336,14 +365,36 @@ class AirSimClosedLoopEvaluator:
                 }
             )
             env.move_to_waypoint(obs.position, waypoint, control_mode=control_mode)
+            post_move_position = env.current_position()
+            executed_path_length_m += l2(obs.position, post_move_position)
+            if AirSimRouteEnv.reached_goal(post_move_position, episode, success_radius):
+                executed_path.append(post_move_position)
+                termination_reason = "goal_reached"
+                break
+            if time.perf_counter() - episode_started_at >= timeout_sec:
+                executed_path.append(post_move_position)
+                termination_reason = "timeout"
+                break
+            if executed_path_length_m >= path_length_limit_m:
+                executed_path.append(post_move_position)
+                termination_reason = "path_length_limit"
+                break
+            if stationary_detector.update(post_move_position, time.perf_counter()):
+                executed_path.append(post_move_position)
+                termination_reason = "stationary_timeout"
+                break
+
             if step_idx >= min_steps_before_stop and float(action.get("stop_prob", 0.0)) >= stop_threshold:
                 next_dist = l2(waypoint, episode["states"][-1]["position"])
                 if next_dist <= success_radius:
+                    termination_reason = "policy_stop"
                     break
+
+        episode_elapsed_sec = time.perf_counter() - episode_started_at
 
         metrics = summarize_episode(
             pred_path=executed_path,
-            ref_path=[state["position"] for state in episode["states"]],
+            ref_path=ref_path,
             goal=episode["states"][-1]["position"],
             success_radius=success_radius,
             shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
@@ -355,9 +406,21 @@ class AirSimClosedLoopEvaluator:
                 "episode_id": episode_id,
                 "scene_id": episode["scene_id"],
                 "executed_path": executed_path,
-                "reference_path": [state["position"] for state in episode["states"]],
+                "reference_path": ref_path,
                 "action_trace": action_trace,
                 "beacon_placements": beacon_placements,
+                "control_mode": control_mode,
+                "fast_reset": fast_reset,
+                "reference_time_sec": reference_time_sec,
+                "timeout_sec": timeout_sec,
+                "episode_elapsed_sec": episode_elapsed_sec,
+                "reference_path_length_m": reference_path_length_m,
+                "path_length_limit_m": path_length_limit_m,
+                "executed_path_length_m": executed_path_length_m,
+                "stationary_timeout_sec": stationary_timeout_sec,
+                "stationary_radius_m": stationary_radius_m,
+                "stationary_duration_sec": stationary_detector.duration_sec,
+                "termination_reason": termination_reason,
             },
             trajectory_path,
         )
@@ -373,6 +436,16 @@ class AirSimClosedLoopEvaluator:
             "beacon_file": str(beacon_path),
             "beacons_placed": sum(1 for item in beacon_placements if item.get("placed")),
             "beacons_requested": len(beacon_placements),
+            "reference_time_sec": reference_time_sec,
+            "timeout_sec": timeout_sec,
+            "episode_elapsed_sec": episode_elapsed_sec,
+            "reference_path_length_m": reference_path_length_m,
+            "path_length_limit_m": path_length_limit_m,
+            "executed_path_length_m": executed_path_length_m,
+            "stationary_timeout_sec": stationary_timeout_sec,
+            "stationary_radius_m": stationary_radius_m,
+            "stationary_duration_sec": stationary_detector.duration_sec,
+            "termination_reason": termination_reason,
         }
         return {
             "metrics": metrics,

@@ -16,7 +16,13 @@ settle_sec: 0.05
 connect_timeout_sec: 60.0
 control_mode: move_to_position
 budget_sec: 2.0
-max_steps: 128
+episode_timeout_factor: 2.0
+minimum_episode_timeout_sec: 1.0
+episode_path_length_factor: 2.0
+minimum_episode_path_length_m: 1.0
+stationary_timeout_sec: 10.0
+stationary_radius_m: 0.5
+max_steps: 10000
 success_radius: 20.0
 stop_probability: 0.7
 min_steps_before_stop: 3
@@ -27,6 +33,9 @@ beacon_placement:
   enabled: true
   count: 4
   include_target: true
+  target_distance_m: 0.0
+  target_lateral_m: 0.0
+  target_vertical_ned_m: 0.0
   hide_all_available: true
   start_margin_steps: 1
   end_margin_steps: 2

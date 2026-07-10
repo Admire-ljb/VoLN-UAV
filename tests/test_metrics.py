@@ -1,4 +1,4 @@
-from voln_uav.evaluation.metrics import aggregate_by_difficulty, summarize_episode
+from voln_uav.evaluation.metrics import aggregate_by_difficulty, reference_travel_time, summarize_episode
 
 
 def test_metrics_basic():
@@ -25,3 +25,8 @@ def test_aggregate_by_difficulty_orders_paper_groups():
     assert grouped["Easy"]["episodes"] == 2
     assert grouped["Easy"]["NE"] == 2.0
     assert grouped["Easy"]["SR"] == 0.5
+
+
+def test_reference_travel_time_uses_path_length_and_speed():
+    ref = [[0, 0, 0], [3, 4, 0], [6, 4, 0]]
+    assert reference_travel_time(ref, speed_mps=2.0) == 4.0
