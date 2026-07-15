@@ -8,12 +8,12 @@ VoLN-UAV provides the benchmark construction pipeline, dataset release tools, tr
 <tr>
 <td align="center" width="50%">
 <strong>Simulation</strong><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo"><img src="assets/readme/demos/simulation_demo_cover.jpg" alt="Simulation demonstration" width="100%"></a><br>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo"><img src="assets/readme/demos/simulation_demo.gif" alt="Simulation demonstration" width="100%"></a><br>
 <a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo">Play simulation in the web player</a>
 </td>
 <td align="center" width="50%">
 <strong>Physical flight</strong><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo_cover.jpg" alt="Physical flight demonstration" width="100%"></a><br>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo.gif" alt="Physical flight demonstration" width="100%"></a><br>
 <a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo">Play physical flight in the web player</a>
 </td>
 </tr>
