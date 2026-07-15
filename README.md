@@ -2,6 +2,57 @@
 
 VoLN-UAV provides the benchmark construction pipeline, dataset release tools, training code, offline evaluation, and AirSim collection utilities for vision-only UAV navigation. The benchmark removes episode-level language instructions and evaluates agents that navigate from egocentric RGB observations with embedded visual beacons, proprioception, and visual goal references.
 
+## Visual Demonstrations
+
+<table>
+<tr>
+<td align="center" width="50%">
+<strong>Simulation</strong><br>
+<a href="assets/readme/demos/simulation_demo.mp4"><img src="assets/readme/demos/simulation_demo_cover.jpg" alt="Simulation demonstration" width="100%"></a><br>
+<a href="assets/readme/demos/simulation_demo.mp4">Open simulation video</a>
+</td>
+<td align="center" width="50%">
+<strong>Physical flight</strong><br>
+<a href="assets/readme/demos/physical_flight_demo.mp4"><img src="assets/readme/demos/physical_flight_demo_cover.jpg" alt="Physical flight demonstration" width="100%"></a><br>
+<a href="assets/readme/demos/physical_flight_demo.mp4">Open physical flight video</a>
+</td>
+</tr>
+</table>
+
+### First-person Dataset Preview
+
+Representative frames are arranged chronologically from left to right. Image height is not fixed, so the original aspect ratio is preserved.
+
+<p><strong>Hard sequence 1</strong></p>
+<table>
+<tr>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_000.png" alt="Hard sequence 1 frame 0" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_011.png" alt="Hard sequence 1 frame 11" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_023.png" alt="Hard sequence 1 frame 23" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_035.png" alt="Hard sequence 1 frame 35" width="100%"></td>
+</tr>
+</table>
+
+<p><strong>Brushify simple sequence 1</strong></p>
+<table>
+<tr>
+<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_000.png" alt="Brushify simple sequence 1 frame 0" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_011.png" alt="Brushify simple sequence 1 frame 11" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_023.png" alt="Brushify simple sequence 1 frame 23" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_035.png" alt="Brushify simple sequence 1 frame 35" width="100%"></td>
+</tr>
+</table>
+
+<p><strong>Brushify Forest Pack normal sequence 1</strong></p>
+<table>
+<tr>
+<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_000.png" alt="Brushify Forest Pack normal sequence 1 frame 0" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_011.png" alt="Brushify Forest Pack normal sequence 1 frame 11" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_023.png" alt="Brushify Forest Pack normal sequence 1 frame 23" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_035.png" alt="Brushify Forest Pack normal sequence 1 frame 35" width="100%"></td>
+</tr>
+</table>
+
 ## Hugging Face Resources
 
 - env: https://huggingface.co/datasets/Louj/VoLN-UAV-ENV
