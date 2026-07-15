@@ -8,13 +8,13 @@ VoLN-UAV provides the benchmark construction pipeline, dataset release tools, tr
 <tr>
 <td align="center" width="50%">
 <strong>Simulation</strong><br>
-<a href="assets/readme/demos/simulation_demo.mp4"><img src="assets/readme/demos/simulation_demo_cover.jpg" alt="Simulation demonstration" width="100%"></a><br>
-<a href="assets/readme/demos/simulation_demo.mp4">Open simulation video</a>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo"><img src="assets/readme/demos/simulation_demo_cover.jpg" alt="Simulation demonstration" width="100%"></a><br>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo">Play simulation in the web player</a>
 </td>
 <td align="center" width="50%">
 <strong>Physical flight</strong><br>
-<a href="assets/readme/demos/physical_flight_demo.mp4"><img src="assets/readme/demos/physical_flight_demo_cover.jpg" alt="Physical flight demonstration" width="100%"></a><br>
-<a href="assets/readme/demos/physical_flight_demo.mp4">Open physical flight video</a>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo_cover.jpg" alt="Physical flight demonstration" width="100%"></a><br>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo">Play physical flight in the web player</a>
 </td>
 </tr>
 </table>
@@ -23,13 +23,13 @@ VoLN-UAV provides the benchmark construction pipeline, dataset release tools, tr
 
 Representative frames are arranged chronologically from left to right. Image height is not fixed, so the original aspect ratio is preserved.
 
-<p><strong>Hard sequence 1</strong></p>
+<p><strong>Citysample — Hard sequence 1</strong></p>
 <table>
 <tr>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_000.png" alt="Hard sequence 1 frame 0" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_011.png" alt="Hard sequence 1 frame 11" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_023.png" alt="Hard sequence 1 frame 23" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_035.png" alt="Hard sequence 1 frame 35" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_000.png" alt="Citysample hard sequence 1 frame 0" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_011.png" alt="Citysample hard sequence 1 frame 11" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_023.png" alt="Citysample hard sequence 1 frame 23" width="100%"></td>
+<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_035.png" alt="Citysample hard sequence 1 frame 35" width="100%"></td>
 </tr>
 </table>
 
