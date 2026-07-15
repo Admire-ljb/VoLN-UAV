@@ -320,28 +320,29 @@
     td { color: var(--muted); }
     td strong { color: white; }
 
-    .demo-box {
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .video-card {
       border-radius: 18px;
-      border: 1px dashed rgba(255,255,255,.18);
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
-      min-height: 230px;
-      display: grid; place-items: center;
-      text-align: center;
-      padding: 22px;
-    }
-    .demo-box span {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      background: rgba(255,255,255,.08);
       border: 1px solid rgba(255,255,255,.12);
-      color: #e8f2ff;
-      margin-bottom: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      padding: 16px;
+      scroll-margin-top: 96px;
     }
-    .demo-box h3 { margin: 0 0 8px; }
-    .demo-box p { margin: 0; color: var(--muted); max-width: 34ch; }
+    .video-card video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 14px;
+      background: #020617;
+      object-fit: contain;
+    }
+    .video-card h3 { margin: 14px 0 4px; }
+    .video-card p { margin: 0; color: var(--muted); }
+    .video-card a { color: var(--accent); font-weight: 700; }
 
     .resource-card a.inline {
       display: inline-flex;
@@ -486,7 +487,7 @@
     body.light .foot-card,
     body.light .mini,
     body.light .table-wrap,
-    body.light .demo-box,
+    body.light .video-card,
     body.light .tag {
       background: rgba(255,255,255,.82);
       border-color: rgba(15,23,42,.10);
@@ -513,11 +514,6 @@
       background: rgba(15,23,42,.04);
       color: var(--text);
     }
-    body.light .demo-box span {
-      background: rgba(15,23,42,.05);
-      border-color: rgba(15,23,42,.08);
-      color: var(--text);
-    }
     body.light .stat strong,
     body.light td strong,
     body.light h1,
@@ -529,7 +525,7 @@
     body.light .theme-toggle .icon-light { display: inline; }
 
     @media (max-width: 980px) {
-      .hero-grid, .grid-2, .grid-3, .grid-4, .stats, .kpi {
+      .hero-grid, .grid-2, .grid-3, .grid-4, .stats, .kpi, .demo-grid {
         grid-template-columns: 1fr;
       }
       .nav-inner {
@@ -831,19 +827,29 @@
     <div class="wrap">
       <div class="section-head">
         <div>
-          <h2>Demo</h2>
-          <p>The demo section currently keeps only a video placeholder.</p>
+          <h2>Visual Demonstrations</h2>
+          <p>Use the embedded players to view the simulation and physical-flight demonstrations directly in the browser.</p>
         </div>
       </div>
 
-      <div class="card">
-        <div class="demo-box">
-          <div>
-            <span>Placeholder</span>
-            <h3>Demo Video</h3>
-            <p>.</p>
-          </div>
-        </div>
+      <div class="demo-grid">
+        <article class="video-card" id="simulation-demo">
+          <video controls preload="metadata" playsinline poster="media/simulation_demo_cover.jpg">
+            <source src="media/simulation_demo.mp4" type="video/mp4" />
+            Your browser does not support HTML5 video.
+          </video>
+          <h3>Simulation</h3>
+          <p><a href="media/simulation_demo.mp4">Open the MP4 file</a></p>
+        </article>
+
+        <article class="video-card" id="physical-flight-demo">
+          <video controls preload="metadata" playsinline poster="media/physical_flight_demo_cover.jpg">
+            <source src="media/physical_flight_demo.mp4" type="video/mp4" />
+            Your browser does not support HTML5 video.
+          </video>
+          <h3>Physical flight</h3>
+          <p><a href="media/physical_flight_demo.mp4">Open the MP4 file</a></p>
+        </article>
       </div>
     </div>
   </section>
