@@ -3,485 +3,472 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Project page for VoLN, the VoLN-UAV benchmark, and the VoLN-MLLM method for vision-only UAV navigation.">
-  <title>VoLN | Vision-Only Language-Model-Oriented Navigation</title>
+  <meta name="description" content="Project page for VoLN: Vision-Only Language-Model-Oriented Navigation, the VoLN-UAV benchmark, and the VoLN-MLLM method.">
+  <title>VoLN: Vision-Only Language-Model-Oriented Navigation</title>
   <style>
     :root {
-      --ink: #182433;
-      --navy: #102b4e;
-      --navy-2: #1f4b75;
-      --accent: #9d2f3f;
-      --paper: #ffffff;
-      --wash: #f4f7fa;
-      --line: #d9e1e8;
-      --muted: #596979;
-      --soft-blue: #eaf1f7;
-      --soft-red: #f8ecee;
-      --max-width: 1160px;
+      --text: #363636;
+      --muted: #626262;
+      --link: #3273dc;
+      --rule: #e7e7e7;
+      --soft: #f7f7f7;
+      --button: #363636;
+      --accent: #c6283d;
+      --content: 960px;
+      --wide: 1120px;
     }
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      color: var(--ink);
-      background: var(--paper);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: #fff;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 16px;
-      line-height: 1.65;
+      line-height: 1.6;
     }
 
+    a {
+      color: var(--link);
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
     img, video { display: block; max-width: 100%; }
-    a { color: var(--navy-2); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-    a:hover { color: var(--accent); }
-    code {
-      padding: 0.1em 0.35em;
-      border-radius: 4px;
-      background: #edf1f5;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      font-size: 0.9em;
-    }
 
-    .container {
-      width: min(var(--max-width), calc(100% - 36px));
+    .container,
+    .container-wide {
+      width: calc(100% - 40px);
       margin: 0 auto;
     }
+    .container { max-width: var(--content); }
+    .container-wide { max-width: var(--wide); }
 
-    .site-nav {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      border-bottom: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.96);
-      backdrop-filter: blur(10px);
-    }
-
-    .nav-inner {
-      min-height: 62px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-    }
-
-    .wordmark {
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 22px;
-      font-weight: 700;
-      text-decoration: none;
-      letter-spacing: 0.01em;
-    }
-
-    .nav-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    .nav-links a { color: var(--muted); text-decoration: none; }
-    .nav-links a:hover { color: var(--navy); }
-
-    .hero {
-      padding: 72px 0 44px;
-      border-bottom: 1px solid var(--line);
-      background:
-        linear-gradient(180deg, rgba(234, 241, 247, 0.78), rgba(255, 255, 255, 0.96)),
-        repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(16, 43, 78, 0.025) 80px);
-    }
-
-    .hero-copy {
-      max-width: 940px;
-      margin: 0 auto 36px;
+    .publication-header {
+      padding: 54px 0 34px;
       text-align: center;
     }
 
-    .eyebrow {
-      margin: 0 0 14px;
+    .venue {
+      margin: 0 0 8px;
       color: var(--accent);
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.14em;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    h1, h2, h3 {
-      margin-top: 0;
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      line-height: 1.2;
+    .publication-title {
+      max-width: 920px;
+      margin: 0 auto 14px;
+      color: #242424;
+      font-size: clamp(34px, 4.3vw, 48px);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
     }
 
-    h1 {
-      margin-bottom: 14px;
-      font-size: clamp(38px, 6vw, 66px);
-      letter-spacing: -0.025em;
+    .publication-subtitle {
+      margin: 0 0 20px;
+      color: #4d4d4d;
+      font-size: clamp(19px, 2.2vw, 25px);
+      font-weight: 500;
+      line-height: 1.3;
     }
 
-    .subtitle {
-      margin: 0 auto;
-      max-width: 840px;
+    .publication-authors {
+      margin: 0 0 4px;
+      color: var(--link);
+      font-size: 19px;
+    }
+
+    .publication-affiliation {
+      margin: 0;
       color: var(--muted);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(19px, 2.5vw, 27px);
+      font-size: 15px;
     }
 
-    .button-row {
+    .publication-note {
+      margin: 4px 0 0;
+      color: #777;
+      font-size: 13px;
+    }
+
+    .publication-links {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 10px;
-      margin-top: 28px;
+      gap: 9px;
+      margin-top: 22px;
     }
 
-    .button {
+    .publication-link {
       display: inline-flex;
-      min-height: 42px;
+      min-height: 36px;
       align-items: center;
       justify-content: center;
-      padding: 0 17px;
-      border: 1px solid var(--navy);
-      border-radius: 5px;
-      color: var(--navy);
-      background: white;
+      padding: 0 16px;
+      border-radius: 999px;
+      color: white;
+      background: var(--button);
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 600;
+      line-height: 1;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    .publication-link:hover {
+      color: white;
+      background: #1e1e1e;
       text-decoration: none;
+      transform: translateY(-1px);
     }
 
-    .button.primary { color: white; background: var(--navy); }
-    .button:hover { color: white; background: var(--accent); border-color: var(--accent); }
-
-    .hero-figure {
-      margin: 0;
-      border: 1px solid var(--line);
-      background: white;
-      box-shadow: 0 18px 50px rgba(27, 49, 72, 0.12);
+    .teaser {
+      margin: 32px auto 0;
+      max-width: 930px;
     }
 
-    .hero-figure figcaption,
-    .figure figcaption {
-      padding: 12px 16px;
+    .teaser img {
+      width: 100%;
+      height: auto;
+    }
+
+    .teaser-caption {
+      max-width: 900px;
+      margin: 13px auto 0;
+      color: #4d4d4d;
+      font-size: 16px;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .section {
+      padding: 46px 0;
+      border-top: 1px solid var(--rule);
+    }
+
+    .section.soft { background: var(--soft); }
+
+    .section-title {
+      margin: 0 0 22px;
+      color: #2f2f2f;
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .section-lead {
+      max-width: 830px;
+      margin: -10px auto 24px;
       color: var(--muted);
-      border-top: 1px solid var(--line);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 14px;
+      font-size: 15px;
+      text-align: center;
     }
 
-    section { padding: 64px 0; }
-    section.alt { background: var(--wash); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-
-    .section-header {
-      max-width: 850px;
-      margin-bottom: 28px;
+    .abstract-text {
+      max-width: 820px;
+      margin: 0 auto;
+      color: #454545;
+      font-size: 16px;
+      line-height: 1.72;
+      text-align: left;
     }
-
-    .section-header h2 {
-      margin-bottom: 10px;
-      font-size: clamp(30px, 4vw, 42px);
-      letter-spacing: -0.015em;
-    }
-
-    .section-header p { margin: 0; color: var(--muted); }
-    .abstract { max-width: 970px; font-family: Georgia, "Times New Roman", serif; font-size: 18px; }
-
-    .grid-2, .grid-3, .grid-4 {
-      display: grid;
-      gap: 22px;
-    }
-
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-    .card {
-      padding: 24px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: white;
-    }
-
-    .card h3 { margin-bottom: 9px; font-size: 21px; }
-    .card p { margin: 0; color: var(--muted); }
-    .card ul { margin: 0; padding-left: 20px; color: var(--muted); }
-    .card li + li { margin-top: 7px; }
-
-    .stat {
-      padding: 19px 20px;
-      border-top: 3px solid var(--navy-2);
-      background: white;
-    }
-
-    .stat strong {
-      display: block;
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 28px;
-      line-height: 1.15;
-    }
-
-    .stat span { color: var(--muted); font-size: 14px; }
-    .stats { margin: 26px 0; }
 
     .figure {
-      margin: 24px 0 0;
-      border: 1px solid var(--line);
-      background: white;
+      margin: 0 auto;
     }
 
-    .method-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
-      gap: 24px;
-      align-items: start;
+    .figure + .figure { margin-top: 38px; }
+    .figure img { width: 100%; height: auto; }
+    .figure.medium { max-width: 940px; }
+    .figure.wide { max-width: 1100px; }
+
+    .caption {
+      margin: 11px auto 0;
+      max-width: 940px;
+      color: #606060;
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: left;
     }
 
-    .method-layout .figure { margin: 0; }
-    .fact-list { display: grid; gap: 12px; }
-    .fact {
-      padding: 16px 18px;
-      border-left: 3px solid var(--accent);
-      background: var(--soft-red);
+    .benchmark-stats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 0 auto 26px;
+      padding: 12px 0;
+      max-width: 900px;
+      border-top: 1px solid #dcdcdc;
+      border-bottom: 1px solid #dcdcdc;
     }
-    .fact strong { display: block; color: var(--navy); }
-    .fact span { color: var(--muted); font-size: 14px; }
+
+    .benchmark-stat {
+      padding: 2px 22px;
+      color: #505050;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .benchmark-stat + .benchmark-stat { border-left: 1px solid #d5d5d5; }
+    .benchmark-stat strong {
+      display: block;
+      color: #292929;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .difficulty {
+      max-width: 900px;
+      margin: 14px auto 0;
+      color: #555;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .method-summary {
+      max-width: 900px;
+      margin: 15px auto 0;
+      color: #505050;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .method-summary strong { color: #303030; }
 
     .table-wrap {
       overflow-x: auto;
-      border: 1px solid var(--line);
-      background: white;
+      max-width: 1080px;
+      margin: 0 auto;
     }
 
     table {
       width: 100%;
-      min-width: 900px;
+      min-width: 880px;
       border-collapse: collapse;
+      color: #404040;
       font-size: 14px;
     }
 
     th, td {
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      border-bottom: 1px solid #dddddd;
       text-align: left;
       white-space: nowrap;
     }
 
-    th { color: white; background: var(--navy); font-weight: 700; }
-    tr:last-child td { border-bottom: 0; }
-    tbody tr:nth-child(even) { background: #f7f9fb; }
-    tbody tr.ours { background: var(--soft-blue); font-weight: 700; }
-    .table-note { margin: 11px 0 0; color: var(--muted); font-size: 14px; }
-
-    .demo-card {
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: white;
+    thead th {
+      border-top: 2px solid #333;
+      border-bottom: 1px solid #777;
+      color: #222;
+      background: #fff;
+      font-weight: 700;
     }
 
-    .demo-card video {
+    tbody tr:last-child td { border-bottom: 2px solid #333; }
+    tbody tr.ours td { font-weight: 700; }
+    tbody tr.ours td:first-child { color: #b22035; }
+
+    .table-note {
+      max-width: 1080px;
+      margin: 9px auto 0;
+      color: #6b6b6b;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .videos {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      max-width: 1000px;
+      margin: 30px auto 0;
+    }
+
+    .video-item video {
       width: 100%;
       aspect-ratio: 16 / 9;
       object-fit: contain;
-      background: #10151c;
+      background: #111;
     }
 
-    .demo-body { padding: 17px 19px; }
-    .demo-body h3 { margin-bottom: 5px; font-size: 20px; }
-    .demo-body p { margin: 0; color: var(--muted); font-size: 14px; }
-
-    .resource {
-      display: flex;
-      flex-direction: column;
-      min-height: 170px;
-    }
-    .resource .resource-link { margin-top: auto; padding-top: 18px; font-weight: 700; }
-
-    pre {
-      overflow-x: auto;
-      margin: 18px 0 0;
-      padding: 18px 20px;
-      border: 1px solid #263b50;
-      border-radius: 5px;
-      color: #e9f0f7;
-      background: #142536;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      font-size: 13px;
-      line-height: 1.65;
-    }
-
-    .citation-box {
-      padding: 22px 24px;
-      border-left: 4px solid var(--accent);
-      background: var(--soft-red);
-    }
-    .citation-box p { margin: 0; }
-
-    footer {
-      padding: 34px 0 50px;
-      color: var(--muted);
-      border-top: 1px solid var(--line);
-      font-size: 14px;
+    .video-label {
+      margin: 8px 0 0;
+      color: #454545;
+      font-size: 15px;
+      font-weight: 600;
       text-align: center;
     }
 
-    @media (max-width: 900px) {
-      .nav-inner { align-items: flex-start; flex-direction: column; padding: 13px 0; }
-      .nav-links { gap: 13px; }
-      .hero { padding-top: 48px; }
-      .grid-2, .grid-3, .grid-4, .method-layout { grid-template-columns: 1fr; }
+    .video-link {
+      display: block;
+      margin-top: 2px;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .resource-note {
+      max-width: 850px;
+      margin: 0 auto;
+      color: #555;
+      font-size: 15px;
+      line-height: 1.65;
+      text-align: center;
+    }
+
+    .bibtex-wrap {
+      position: relative;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 20px 22px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      color: #3d3d3d;
+      background: #f5f5f5;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .copy-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 6px 10px;
+      border: 1px solid #d0d0d0;
+      border-radius: 4px;
+      color: #555;
+      background: white;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .copy-button:hover { background: #eeeeee; }
+
+    footer {
+      padding: 34px 0 52px;
+      color: #777;
+      background: #fafafa;
+      font-size: 13px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    footer p { margin: 0; }
+
+    @media (max-width: 720px) {
+      .publication-header { padding-top: 38px; }
+      .publication-title { font-size: 32px; }
+      .publication-subtitle { font-size: 19px; }
+      .publication-authors { font-size: 17px; }
+      .section { padding: 38px 0; }
+      .section-title { font-size: 26px; }
+      .videos { grid-template-columns: 1fr; }
+      .benchmark-stat {
+        width: 50%;
+        padding: 8px 10px;
+      }
+      .benchmark-stat + .benchmark-stat { border-left: 0; }
+      .benchmark-stat:nth-child(even) { border-left: 1px solid #d5d5d5; }
+      .benchmark-stat:nth-child(n+3) { border-top: 1px solid #d5d5d5; }
     }
   </style>
 </head>
 <body>
-  <nav class="site-nav" aria-label="Primary">
-    <div class="container nav-inner">
-      <a class="wordmark" href="#top">VoLN</a>
-      <div class="nav-links">
-        <a href="#abstract">Abstract</a>
-        <a href="#task">Task</a>
-        <a href="#benchmark">Benchmark</a>
-        <a href="#method">Method</a>
-        <a href="#results">Results</a>
-        <a href="#demonstrations">Demonstrations</a>
-        <a href="#resources">Resources</a>
-      </div>
-    </div>
-  </nav>
+  <header class="publication-header">
+    <div class="container-wide">
+      <p class="venue">AAAI 2027 Submission</p>
+      <h1 class="publication-title">VoLN: Vision-Only Language-Model-Oriented Navigation</h1>
+      <p class="publication-subtitle">The VoLN-UAV Benchmark and VoLN-MLLM</p>
 
-  <header class="hero" id="top">
-    <div class="container">
-      <div class="hero-copy">
-        <p class="eyebrow">Vision-only navigation for UAVs</p>
-        <h1>VoLN: Vision-Only Language-Model-Oriented Navigation</h1>
-        <p class="subtitle">The VoLN-UAV benchmark and the VoLN-MLLM visual-semantic trajectory planner</p>
-        <div class="button-row">
-          <a class="button primary" href="../paperv1.pdf">Paper</a>
-          <a class="button" href="https://github.com/Admire-ljb/VoLN-UAV">Code</a>
-          <a class="button" href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">Dataset</a>
-          <a class="button" href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV">Simulator Environments</a>
-        </div>
+      <p class="publication-authors">Anonymous Submission</p>
+      <p class="publication-affiliation">Vision-only embodied navigation for unmanned aerial vehicles</p>
+      <p class="publication-note">Manuscript under review</p>
+
+      <div class="publication-links" aria-label="Project resources">
+        <a class="publication-link" href="../paperv1.pdf">Paper</a>
+        <a class="publication-link" href="https://github.com/Admire-ljb/VoLN-UAV">Code</a>
+        <a class="publication-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">Dataset</a>
+        <a class="publication-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV">Environments</a>
+        <a class="publication-link" href="#demonstrations">Demo</a>
       </div>
 
-      <figure class="hero-figure">
-        <img src="assets/paper/fig1_teaser.png" alt="Conventional language-guided VLN compared with the visual-goal VoLN setting">
-        <figcaption>VoLN replaces episode-level language instructions and privileged route information with terminal goal views, in-scene visual beacons, egocentric observations, and onboard sensing.</figcaption>
+      <figure class="teaser">
+        <img src="assets/paper/fig1_teaser.png" alt="Comparison between conventional language-guided VLN and the vision-only VoLN setting">
+        <figcaption class="teaser-caption">
+          <strong>VoLN replaces privileged language and route priors with visual evidence.</strong>
+          The goal is specified by terminal views, while route intent must be recovered from in-scene semantic beacons, egocentric observations, and onboard sensing.
+        </figcaption>
       </figure>
     </div>
   </header>
 
   <main>
-    <section id="abstract">
+    <section class="section soft" id="abstract">
       <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Abstract</p>
-          <h2>Navigation intent without text, GPS, or maps</h2>
-        </div>
-        <p class="abstract">
-          VoLN studies long-horizon UAV navigation in which the goal is specified by terminal visual observations and route guidance must be inferred from visual beacons embedded in the environment. The agent acts from egocentric RGB observations, interaction history, goal views, and proprioception. It receives no episode-level text, GPS signal, global map, symbolic goal coordinate, shortest-path supervision, or preconstructed navigation graph during execution. We introduce the VoLN-UAV benchmark and VoLN-MLLM, a vision-centric planner that aligns DINO representations with CLIP semantics and predicts executable waypoint sequences in closed loop.
+        <h2 class="section-title">Abstract</h2>
+        <p class="abstract-text">
+          Vision-and-Language Navigation (VLN) enables embodied agents to follow natural-language instructions, but a language instruction also implicitly encodes spatial priors, such as orientation, distance, and layout, that an agent cannot recover from onboard sensing in open, GPS-denied environments. When benchmarks provide these priors through text, policies can rely on information unavailable at deployment, and reported performance no longer reflects perception-driven navigation. We propose Vision-only Language-Model-oriented Navigation (VoLN), a platform-independent paradigm that specifies the goal through visual goal views alone and guides navigation with in-scene semantic beacons the agent must recognize, withholding text, maps, GPS, and shortest-path information during execution. We instantiate VoLN on aerial navigation, which combines 3D motion, large viewpoint change, and flight-safety constraints, and introduce VoLN-UAV, a benchmark for long-horizon goal-directed navigation under realistic perceptual constraints. As an initial method, we align self-supervised visual features to a structured semantic space and drive a language-model planner from the resulting representation, keeping the agent vision-only while retaining language-model reasoning. Experiments establish VoLN's feasibility and identify open challenges in long-horizon memory, cross-view re-identification, and closed-loop stability.
         </p>
       </div>
     </section>
 
-    <section class="alt" id="task">
-      <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Task formulation</p>
-          <h2>What makes VoLN different?</h2>
-          <p>VoLN isolates visual-semantic grounding, long-horizon memory, and closed-loop control under a unified vision-only interface.</p>
-        </div>
-        <div class="grid-3">
-          <article class="card">
-            <h3>Visual goal specification</h3>
-            <p>The navigation target is defined by terminal goal views rather than a natural-language instruction or a symbolic coordinate.</p>
-          </article>
-          <article class="card">
-            <h3>In-scene route cues</h3>
-            <p>Active visual beacons provide route-relevant evidence, while visually similar passive cues act as semantic distractors.</p>
-          </article>
-          <article class="card">
-            <h3>Embodied closed loop</h3>
-            <p>The policy repeatedly observes, predicts a local 3D waypoint segment and stop signal, executes, and replans from the new state.</p>
-          </article>
-        </div>
-      </div>
-    </section>
+    <section class="section" id="benchmark">
+      <div class="container-wide">
+        <h2 class="section-title">VoLN-UAV Benchmark</h2>
+        <p class="section-lead">A scene-disjoint benchmark for long-horizon UAV navigation across diverse natural and built environments.</p>
 
-    <section id="benchmark">
-      <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">VoLN-UAV benchmark</p>
-          <h2>Diverse environments with scene-disjoint evaluation</h2>
-          <p>The paper protocol produces 7,210 benchmark episodes after construction. The downloadable dataset separately provides sharded source trajectories, RGB observations, annotations, and metadata used by the construction pipeline.</p>
+        <div class="benchmark-stats" aria-label="Dataset statistics">
+          <div class="benchmark-stat"><strong>7,210</strong>Episodes</div>
+          <div class="benchmark-stat"><strong>5,047</strong>Train</div>
+          <div class="benchmark-stat"><strong>1,082</strong>Validation-Unseen</div>
+          <div class="benchmark-stat"><strong>1,081</strong>Test-Unseen</div>
         </div>
 
-        <div class="grid-4 stats">
-          <div class="stat"><strong>7,210</strong><span>Total benchmark episodes</span></div>
-          <div class="stat"><strong>5,047</strong><span>Train episodes · 70%</span></div>
-          <div class="stat"><strong>1,082</strong><span>Validation-Unseen · 15%</span></div>
-          <div class="stat"><strong>1,081</strong><span>Test-Unseen · 15%</span></div>
-        </div>
-
-        <figure class="figure">
-          <img src="assets/paper/fig3_environments.png" alt="Nine representative environment categories in the VoLN-UAV benchmark">
-          <figcaption>Representative natural and built environments cover desert, forest, mountain, urban, tunnel, industrial, campus, and open-site conditions.</figcaption>
+        <figure class="figure medium">
+          <img src="assets/paper/fig3_environments.png" alt="Representative natural and built environments in VoLN-UAV">
+          <figcaption class="caption"><strong>Environment coverage.</strong> Representative scenes include desert, forest, mountain, urban canyon, night urban, campus, tunnel, industrial corridor, and open-site conditions.</figcaption>
         </figure>
 
-        <figure class="figure">
-          <img src="assets/paper/fig4_dataset_pipeline.png" alt="Trajectory collection, beacon augmentation, annotation generation, and scene-level data split">
-          <figcaption>Benchmark construction combines preset and operator-collected trajectories, route-aware beacon augmentation, synchronized step-level annotations, and scene-source splitting.</figcaption>
+        <figure class="figure wide">
+          <img src="assets/paper/fig4_dataset_pipeline.png" alt="VoLN-UAV trajectory collection, beacon augmentation, annotation, and data split pipeline">
+          <figcaption class="caption"><strong>Dataset construction.</strong> Preset and operator-collected trajectories are augmented with route-aware beacons, synchronized step-level annotations, and scene-source splits for unseen-environment evaluation.</figcaption>
         </figure>
 
-        <div class="grid-3" style="margin-top:22px;">
-          <article class="card">
-            <h3>Easy</h3>
-            <p>Reference path length below 300 m.</p>
-          </article>
-          <article class="card">
-            <h3>Normal</h3>
-            <p>Reference path length from 300 m to below 450 m.</p>
-          </article>
-          <article class="card">
-            <h3>Hard</h3>
-            <p>Reference path length of at least 450 m.</p>
-          </article>
-        </div>
+        <p class="difficulty"><strong>Difficulty:</strong> Easy &lt; 300 m · Normal 300–450 m · Hard ≥ 450 m, measured by reference path length.</p>
       </div>
     </section>
 
-    <section class="alt" id="method">
-      <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Proposed method</p>
-          <h2>VoLN-MLLM</h2>
-          <p>A two-stage visual-semantic alignment and trajectory-planning framework.</p>
-        </div>
-        <div class="method-layout">
-          <figure class="figure">
-            <img src="assets/paper/fig5_voln_mllm.png" alt="Two-stage VoLN-MLLM architecture">
-            <figcaption>Phase I distills frozen CLIP image semantics into a lightweight DINO adapter. Phase II retrieves semantic tokens and predicts a local waypoint sequence from the aligned observation, goal views, and proprioception.</figcaption>
-          </figure>
-          <div class="fact-list">
-            <div class="fact"><strong>Visual backbone</strong><span>Frozen DINOv3 ViT-B/16</span></div>
-            <div class="fact"><strong>Semantic alignment</strong><span>DINO-to-CLIP adapter with cosine distillation</span></div>
-            <div class="fact"><strong>Semantic retrieval</strong><span>Top-8 concepts from a 300-entry bank</span></div>
-            <div class="fact"><strong>Planner</strong><span>Six Transformer layers, hidden size 512, eight heads</span></div>
-            <div class="fact"><strong>Efficient adaptation</strong><span>LoRA rank 16</span></div>
-            <div class="fact"><strong>Action output</strong><span>Eight 3D waypoints and a stop signal</span></div>
-          </div>
-        </div>
+    <section class="section" id="method">
+      <div class="container-wide">
+        <h2 class="section-title">VoLN-MLLM</h2>
+        <p class="section-lead">Visual-semantic alignment followed by closed-loop trajectory planning.</p>
+
+        <figure class="figure wide">
+          <img src="assets/paper/fig5_voln_mllm.png" alt="The two-stage VoLN-MLLM framework">
+          <figcaption class="caption"><strong>Method overview.</strong> Phase I maps frozen DINOv3 features into the CLIP image-embedding space through a lightweight adapter. Phase II retrieves visual-semantic tokens and predicts an executable local waypoint sequence from the aligned observation, terminal goal views, and proprioception.</figcaption>
+        </figure>
+
+        <p class="method-summary">
+          <strong>Implementation.</strong> VoLN-MLLM uses a frozen DINOv3 ViT-B/16 backbone, a six-layer Transformer planner with hidden size 512 and eight attention heads, top-8 retrieval from a 300-entry semantic bank, LoRA rank 16, and an action output of eight 3D waypoints plus a stop signal.
+        </p>
       </div>
     </section>
 
-    <section id="results">
-      <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Main results</p>
-          <h2>Test-Unseen navigation performance</h2>
-          <p>All trained baselines are VoLN-adapted visual-goal variants and use the same observations, waypoint supervision, action interface, stopping rule, and evaluation protocol.</p>
-        </div>
+    <section class="section soft" id="results">
+      <div class="container-wide">
+        <h2 class="section-title">Benchmark Results</h2>
+        <p class="section-lead">Test-Unseen performance under the unified visual-goal observation and waypoint-action protocol.</p>
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -538,97 +525,76 @@
             </tbody>
           </table>
         </div>
-        <p class="table-note">Values are Easy / Normal / Hard. Random-policy nDTW for Normal and Hard remains unreported in the current manuscript.</p>
+        <p class="table-note">Values are ordered as Easy / Normal / Hard. Random-policy nDTW for Normal and Hard remains unreported in the current manuscript.</p>
+      </div>
+    </section>
 
-        <figure class="figure">
-          <img src="assets/paper/fig6_beacon_case.png" alt="Aligned success and failure rollouts for active and passive beacon discrimination">
-          <figcaption>Beacon-discrimination case study. The successful rollout ignores passive distractors and re-identifies the goal; the failure rollout commits to a passive cue, drifts, and misses.</figcaption>
+    <section class="section" id="qualitative">
+      <div class="container-wide">
+        <h2 class="section-title">Qualitative Analysis</h2>
+        <p class="section-lead">Active-beacon selection and passive-distractor rejection determine whether local decisions remain aligned with the route.</p>
+
+        <figure class="figure wide">
+          <img src="assets/paper/fig6_beacon_case.png" alt="Aligned successful and failed rollouts for beacon discrimination">
+          <figcaption class="caption"><strong>Beacon-discrimination case study.</strong> The successful rollout ignores passive distractors and re-identifies the goal. The failed rollout commits to a passive cue, produces an incorrect local update, and accumulates drift.</figcaption>
         </figure>
       </div>
     </section>
 
-    <section class="alt" id="demonstrations">
-      <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Visual evidence</p>
-          <h2>Simulation and physical deployment</h2>
-          <p>The physical testbed is a preliminary qualitative feasibility study rather than a large-scale quantitative real-world benchmark.</p>
-        </div>
+    <section class="section" id="demonstrations">
+      <div class="container-wide">
+        <h2 class="section-title">Simulation and Real-World Demonstrations</h2>
+        <p class="section-lead">The physical testbed is a preliminary qualitative feasibility study rather than a large-scale quantitative real-world benchmark.</p>
 
-        <figure class="figure" style="margin-top:0;">
-          <img src="assets/paper/fig7_real_testbed.png" alt="Physical indoor VoLN testbed with executed trajectory, beacon, and goal overlay">
-          <figcaption>Physical indoor testbed under the VoLN interface. The overlay marks the UAV, executed trajectory, next visual beacon, and goal region.</figcaption>
+        <figure class="figure medium">
+          <img src="assets/paper/fig7_real_testbed.png" alt="Physical indoor VoLN testbed with trajectory and beacon overlays">
+          <figcaption class="caption"><strong>Physical indoor testbed.</strong> The overlay marks the UAV, executed trajectory, next visual beacon, and goal region under the same visual-goal interface.</figcaption>
         </figure>
 
-        <div class="grid-2" style="margin-top:22px;">
-          <article class="demo-card" id="simulation-demo">
+        <div class="videos">
+          <div class="video-item" id="simulation-demo">
             <video controls preload="metadata" playsinline poster="media/simulation_demo_cover.jpg?v=20260717">
               <source src="media/simulation_demo.mp4?v=20260717" type="video/mp4">
               Your browser does not support HTML5 video.
             </video>
-            <div class="demo-body">
-              <h3>Simulation</h3>
-              <p><a href="media/simulation_demo.mp4?v=20260717">Open the MP4 file</a></p>
-            </div>
-          </article>
-          <article class="demo-card" id="physical-flight-demo">
+            <p class="video-label">Simulation</p>
+            <a class="video-link" href="media/simulation_demo.mp4?v=20260717">Open MP4</a>
+          </div>
+
+          <div class="video-item" id="physical-flight-demo">
             <video controls preload="metadata" playsinline poster="media/physical_flight_demo_cover.jpg?v=20260717">
               <source src="media/physical_flight_demo.mp4?v=20260717" type="video/mp4">
               Your browser does not support HTML5 video.
             </video>
-            <div class="demo-body">
-              <h3>Physical flight</h3>
-              <p><a href="media/physical_flight_demo.mp4?v=20260717">Open the MP4 file</a></p>
-            </div>
-          </article>
+            <p class="video-label">Physical flight</p>
+            <a class="video-link" href="media/physical_flight_demo.mp4?v=20260717">Open MP4</a>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="resources">
+    <section class="section soft" id="resources">
       <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Resources and reproducibility</p>
-          <h2>Code, data, and simulator packages</h2>
-          <p>The navigation data and simulator environments are hosted separately so that offline training and online AirSim evaluation can be reproduced independently.</p>
-        </div>
-        <div class="grid-3">
-          <article class="card resource">
-            <h3>Source code</h3>
-            <p>Benchmark construction, training, VoLN-adapted baselines, offline metrics, and AirSim evaluation.</p>
-            <a class="resource-link" href="https://github.com/Admire-ljb/VoLN-UAV">Open GitHub repository →</a>
-          </article>
-          <article class="card resource">
-            <h3>Navigation dataset</h3>
-            <p>Sharded trajectories, RGB frames, split metadata, manifests, and checksums.</p>
-            <a class="resource-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">Open dataset →</a>
-          </article>
-          <article class="card resource">
-            <h3>Simulator environments</h3>
-            <p>Unreal Engine and AirSim environment archives for online evaluation.</p>
-            <a class="resource-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV">Open environments →</a>
-          </article>
-        </div>
-
-        <pre>conda create -n voln-uav python=3.10 -y
-conda activate voln-uav
-pip install -r requirement.txt
-pip install -e .[real]
-
-python -m voln_uav.cli.build_benchmark --config configs/benchmark_dataset_release.yaml
-python scripts/run_dataset_release_pipeline.py --device cuda
-python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_release.yaml --device cuda</pre>
+        <h2 class="section-title">Resources</h2>
+        <p class="resource-note">
+          The <a href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">navigation dataset</a> provides sharded trajectories, RGB observations, annotations, and metadata. The <a href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV">simulator package</a> provides the Unreal Engine and AirSim environments for online evaluation. Training, benchmark construction, VoLN-adapted baselines, and evaluation scripts are available in the <a href="https://github.com/Admire-ljb/VoLN-UAV">code repository</a>.
+        </p>
       </div>
     </section>
 
-    <section class="alt" id="citation">
+    <section class="section" id="bibtex">
       <div class="container">
-        <div class="section-header">
-          <p class="eyebrow">Citation</p>
-          <h2>Citing VoLN</h2>
-        </div>
-        <div class="citation-box">
-          <p>The manuscript is currently under review. Final bibliographic metadata will be added after the review period. Until then, please cite the project by its title, <strong>“VoLN: Vision-Only Language-Model-Oriented Navigation,”</strong> and link to the <a href="https://github.com/Admire-ljb/VoLN-UAV">project repository</a>.</p>
+        <h2 class="section-title">BibTeX</h2>
+        <p class="section-lead">Temporary anonymous citation; bibliographic metadata will be updated after the review period.</p>
+        <div class="bibtex-wrap">
+          <pre id="bibtex-code">@misc{anonymous2027voln,
+  title  = {VoLN: Vision-Only Language-Model-Oriented Navigation},
+  author = {Anonymous Authors},
+  year   = {2027},
+  note   = {Manuscript under review},
+  url    = {https://github.com/Admire-ljb/VoLN-UAV}
+}</pre>
+          <button class="copy-button" id="copy-bibtex" type="button">Copy</button>
         </div>
       </div>
     </section>
@@ -636,8 +602,24 @@ python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_releas
 
   <footer>
     <div class="container">
-      VoLN-UAV research project · We thank the TravelUAV and AirVLN teams for their released codebases and engineering references.
+      <p>VoLN-UAV research project · Page style inspired by the <a href="https://github.com/nerfies/nerfies.github.io">Academic Project Page Template</a>.</p>
     </div>
   </footer>
+
+  <script>
+    const copyButton = document.getElementById("copy-bibtex");
+    const bibtexCode = document.getElementById("bibtex-code");
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(bibtexCode.innerText);
+        copyButton.textContent = "Copied";
+      } catch (error) {
+        copyButton.textContent = "Copy failed";
+      }
+      window.setTimeout(() => {
+        copyButton.textContent = "Copy";
+      }, 1400);
+    });
+  </script>
 </body>
 </html>
