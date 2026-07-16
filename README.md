@@ -1,6 +1,106 @@
-# VoLN-UAV: Vision-only Language-Model-based Navigation for UAVs
+<div align="center">
 
-VoLN-UAV provides the benchmark construction pipeline, dataset release tools, training code, offline evaluation, and AirSim collection utilities for vision-only UAV navigation. The benchmark removes episode-level language instructions and evaluates agents that navigate from egocentric RGB observations with embedded visual beacons, proprioception, and visual goal references.
+# VoLN: Vision-Only Language-Model-Oriented Navigation
+
+### VoLN-UAV benchmark and VoLN-MLLM
+
+[Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
+[Paper](paperv1.pdf) ·
+[Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
+[Simulator Environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) ·
+[Documentation](docs/voln_adapted_baselines.md)
+
+</div>
+
+<p align="center">
+  <img src="docs/assets/paper/fig1_teaser.png" alt="Comparison between conventional VLN and VoLN" width="100%">
+</p>
+
+## Overview
+
+VoLN studies long-horizon UAV navigation when route intent is specified without episode-level language instructions. At each decision step, the agent receives an egocentric RGB observation, its observation history, proprioception, and terminal goal views. Route guidance must be recovered from visual beacons embedded in the environment. Text instructions, GPS, global maps, symbolic goal coordinates, and shortest-path supervision are unavailable during execution.
+
+This repository contains:
+
+- the **VoLN-UAV** benchmark construction and scene-disjoint evaluation pipeline;
+- the **VoLN-MLLM** visual-semantic alignment and trajectory-planning method;
+- VoLN-adapted **Seq2Seq-VG**, **CMA-VG**, and **LAG-VG** baselines;
+- offline and AirSim closed-loop evaluation with NE, SR, OSR, nDTW, SPL, CT, and EER;
+- dataset packaging, beacon augmentation, route replay, and simulator utilities.
+
+## News and Resources
+
+- **Dataset:** [Louj/VoLN-UAV-dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset)
+- **Simulator environments:** [Louj/VoLN-UAV-ENV](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV)
+- **Interactive demonstrations:** [Project page](https://admire-ljb.github.io/VoLN-UAV/#demonstrations)
+- **Current manuscript:** [PDF](paperv1.pdf)
+
+The navigation dataset and simulator packages are released separately. The dataset repository provides sharded source trajectories, RGB observations, metadata, and split files; the environment repository provides the Unreal Engine/AirSim packages.
+
+## VoLN-UAV Benchmark
+
+<p align="center">
+  <img src="docs/assets/paper/fig3_environments.png" alt="Environment categories in VoLN-UAV" width="100%">
+</p>
+
+The current manuscript defines **7,210 benchmark episodes** with scene-level disjoint splits:
+
+| Split | Episodes | Ratio | Evaluation name |
+|---|---:|---:|---|
+| Train | 5,047 | 70% | Train |
+| Validation | 1,082 | 15% | Validation-Unseen |
+| Test | 1,081 | 15% | Test-Unseen |
+
+Difficulty is determined by reference path length:
+
+- **Easy:** less than 300 m
+- **Normal:** 300–450 m
+- **Hard:** at least 450 m
+
+<p align="center">
+  <img src="docs/assets/paper/fig4_dataset_pipeline.png" alt="VoLN-UAV trajectory collection, beacon augmentation, annotation, and split pipeline" width="100%">
+</p>
+
+The benchmark combines preset trajectories and operator-collected routes, injects task-relevant active beacons, retains passive semantic distractors, and records synchronized RGB, IMU, odometry, state, goal-view, and future-waypoint supervision. Splitting is performed at the Unreal-scene level to prevent scene leakage.
+
+## VoLN-MLLM
+
+<p align="center">
+  <img src="docs/assets/paper/fig5_voln_mllm.png" alt="VoLN-MLLM framework" width="100%">
+</p>
+
+VoLN-MLLM has two stages:
+
+1. **Visual-semantic alignment.** A lightweight adapter maps frozen DINOv3 ViT-B/16 features into the frozen CLIP ViT-B/16 image-embedding space using cosine distillation.
+2. **Trajectory planning.** A six-layer Transformer planner combines the aligned observation, terminal goal views, proprioception, and top-8 tokens retrieved from a 300-entry semantic bank. LoRA rank-16 adapters specialize the planner to predict eight 3D waypoints and a stop signal.
+
+## Main Results
+
+Test-Unseen results from the current manuscript are shown below. Each entry is ordered as **Easy / Normal / Hard**; arrows indicate whether lower or higher is better.
+
+| Method | NE (m) ↓ | SR (%) ↑ | OSR (%) ↑ | nDTW (%) ↑ | SPL (%) ↑ |
+|---|---:|---:|---:|---:|---:|
+| Random | 270.1 / 310.4 / 395.2 | 0.4 / 0.0 / 0.0 | 1.4 / 0.6 / 0.2 | 30.1 / – / – | 0.3 / 0.0 / 0.0 |
+| Seq2Seq-VG | 208.6 / 254.8 / 309.9 | 1.0 / 0.4 / 0.1 | 4.8 / 2.5 / 0.9 | 28.9 / 21.4 / 13.0 | 0.7 / 0.3 / 0.0 |
+| CMA-VG | 174.5 / 216.8 / 266.1 | 1.6 / 0.8 / 0.2 | 6.5 / 3.9 / 1.7 | 33.2 / 26.4 / 18.5 | 1.1 / 0.6 / 0.1 |
+| LAG-VG | 122.4 / 158.3 / 206.7 | 2.3 / 1.2 / 0.4 | 6.4 / 3.8 / 1.7 | 28.1 / 20.5 / 14.0 | 1.5 / 0.7 / 0.2 |
+| **VoLN-MLLM** | **97.1 / 131.4 / 176.8** | **7.4 / 4.5 / 1.8** | **14.6 / 10.1 / 4.5** | **53.1 / 41.2 / 28.0** | **5.7 / 3.2 / 1.3** |
+
+The trained baselines are visual-goal adaptations of instruction-following navigation models. All methods receive the same VoLN observations and share waypoint supervision, action interface, stopping rule, and evaluation protocol.
+
+## Qualitative Results
+
+<p align="center">
+  <img src="docs/assets/paper/fig6_beacon_case.png" alt="Success and failure cases for active and passive beacon discrimination" width="100%">
+</p>
+
+The aligned rollouts show the key VoLN failure mode: an agent must select the active route beacon while ignoring visually similar passive distractors. Selecting the wrong cue produces an incorrect local update, accumulated drift, and a missed goal.
+
+<p align="center">
+  <img src="docs/assets/paper/fig7_real_testbed.png" alt="Physical indoor testbed for preliminary real-world deployment" width="100%">
+</p>
+
+The physical indoor testbed is a preliminary qualitative feasibility study under the same visual-goal interface; it is not presented as a large-scale quantitative real-world benchmark.
 
 ## Visual Demonstrations
 
@@ -9,341 +109,100 @@ VoLN-UAV provides the benchmark construction pipeline, dataset release tools, tr
 <td align="center" width="50%">
 <strong>Simulation</strong><br>
 <a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo"><img src="assets/readme/demos/simulation_demo.gif" alt="Simulation demonstration" width="100%"></a><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo">Play simulation in the web player</a>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo">Open web player</a>
 </td>
 <td align="center" width="50%">
 <strong>Physical flight</strong><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo.gif" alt="Physical flight demonstration" width="100%"></a><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo">Play physical flight in the web player</a>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo.gif" alt="Physical-flight demonstration" width="100%"></a><br>
+<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo">Open web player</a>
 </td>
 </tr>
 </table>
 
-### First-person Dataset Preview
-
-Representative frames are arranged chronologically from left to right. Image height is not fixed, so the original aspect ratio is preserved.
-
-<p><strong>Citysample — Hard sequence 1</strong></p>
-<table>
-<tr>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_000.png" alt="Citysample hard sequence 1 frame 0" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_011.png" alt="Citysample hard sequence 1 frame 11" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_023.png" alt="Citysample hard sequence 1 frame 23" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/hard_01_frontcamera/frame_035.png" alt="Citysample hard sequence 1 frame 35" width="100%"></td>
-</tr>
-</table>
-
-<p><strong>Brushify simple sequence 1</strong></p>
-<table>
-<tr>
-<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_000.png" alt="Brushify simple sequence 1 frame 0" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_011.png" alt="Brushify simple sequence 1 frame 11" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_023.png" alt="Brushify simple sequence 1 frame 23" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_simple_01_frontcamera/frame_035.png" alt="Brushify simple sequence 1 frame 35" width="100%"></td>
-</tr>
-</table>
-
-<p><strong>Brushify Forest Pack normal sequence 1</strong></p>
-<table>
-<tr>
-<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_000.png" alt="Brushify Forest Pack normal sequence 1 frame 0" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_011.png" alt="Brushify Forest Pack normal sequence 1 frame 11" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_023.png" alt="Brushify Forest Pack normal sequence 1 frame 23" width="100%"></td>
-<td width="25%"><img src="assets/readme/dataset/brushify_forestpack_normal_01_frontcamera/frame_035.png" alt="Brushify Forest Pack normal sequence 1 frame 35" width="100%"></td>
-</tr>
-</table>
-
-## Hugging Face Resources
-
-- env: https://huggingface.co/datasets/Louj/VoLN-UAV-ENV
-- dataset: https://huggingface.co/datasets/Louj/VoLN-UAV-Dataset
-
-The environment package and the navigation dataset are intentionally separated. Download `env` for simulator assets and use `dataset` for routes, frames, split manifests, and benchmark metadata.
-
-## Repository Layout
-
-```text
-src/voln_uav/
-  benchmark/      Benchmark builder, visual goals, beacon augmentation, scene-level split
-  data/           PyTorch datasets and dataset-release packaging utilities
-  models/         DINO-to-CLIP adapter, semantic bank, planner, LoRA modules
-  training/       Adapter/planner training and DAgger-style collection
-  evaluation/     Offline closed-loop evaluation and metrics
-  simulators/     Route replay and AirSim environment interfaces
-  cli/            Command-line entry points
-configs/          Toy and real-data configuration templates
-examples/         Toy source generator and replay helpers
-airsim_plugin/    AirSim/Unreal launcher utilities
-```
-
 ## Installation
 
-```bash
+~~~bash
 conda create -n voln-uav python=3.10 -y
 conda activate voln-uav
 pip install -r requirement.txt
-pip install -e .
-```
-
-Optional real-backbone dependencies:
-
-```bash
 pip install -e .[real]
-```
+~~~
 
-Model-name conventions:
+Install the CUDA-specific PyTorch build first if the default wheel does not match your system.
 
-- `hf:<model_name>` loads a Hugging Face `transformers.AutoModel` image backbone.
-- `open_clip:<model_name>[:<pretrained_tag>]` loads an OpenCLIP image encoder.
+## Dataset Preparation
 
-Install the CUDA-specific PyTorch build first if your machine needs a non-default wheel.
+Download the [navigation dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) and extract the metadata and required split shards into one directory. Download the [simulator environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) separately for online AirSim evaluation.
 
-## Quick Verification With Toy Data
+Set <code>source_root</code> and <code>output_root</code> in <code>configs/benchmark_dataset_release.yaml</code>, then build the benchmark:
 
-```bash
-python examples/generate_toy_source.py --out_dir data/toy_source
-python -m voln_uav.cli.build_benchmark --config configs/benchmark_toy.yaml
-python -m voln_uav.cli.train_adapter --config configs/train_adapter_toy.yaml
-python -m voln_uav.cli.train_planner --config configs/train_planner_toy.yaml
-python -m voln_uav.cli.eval_offline --config configs/eval_toy.yaml
-```
-
-The toy pipeline writes outputs to `data/toy_benchmark/` and `work_dirs/`.
-
-## Dataset Release Preparation
-
-To organize the local raw dataset into a Hugging Face-ready release package:
-
-```bash
-python -m voln_uav.cli.prepare_dataset_release \
-  --source-root /path/to/source_root_a \
-  --source-root /path/to/source_root_b \
-  --source-root /path/to/source_root_c \
-  --out-root D:/VoLN_dataset/VoLN-UAV-Dataset-release \
-  --zip-path D:/VoLN_dataset/VoLN-UAV-Dataset-release.zip \
-  --asset-mode index
-```
-
-`--asset-mode index` creates a compact ZIP containing route metadata, split manifests, checksums, and a Hugging Face dataset card. Use it for a quick metadata-only release check.
-
-For a full upload package that copies selected egocentric RGB frames into the release tree, use:
-
-```bash
-python -m voln_uav.cli.prepare_dataset_release \
-  --source-root /path/to/source_root_a \
-  --source-root /path/to/source_root_b \
-  --source-root /path/to/source_root_c \
-  --out-root D:/VoLN_dataset/VoLN-UAV-Dataset-release-full \
-  --zip-path D:/VoLN_dataset/VoLN-UAV-Dataset-release-full.zip \
-  --asset-mode copy
-```
-
-The full package can be very large. Keep at least the raw-data size plus ZIP workspace available before running `copy` mode.
-
-The generated release tree contains:
-
-```text
-VoLN-UAV-Dataset-release/
-  README.md                  Hugging Face dataset card
-  manifest.json              Dataset summary and HF links
-  checksums.sha256           File checksums for the generated package
-  source/
-    scenes.jsonl             Scene manifest with split assignment
-    preset_routes/           Route JSON files from preset-style trajectories
-    custom_routes/           Route JSON files from custom-style trajectories
-    frames/                  Copied RGB frames when asset_mode=copy
-  splits/
-    train.jsonl
-    val.jsonl
-    test.jsonl
-  metadata/                   Episode and source metadata
-```
-
-After uploading the ZIP contents to `dataset`, keep the `env` link in the dataset card so users can fetch simulator assets separately.
-
-## Benchmark Construction From Release Metadata
-
-Once a release source tree exists, update `configs/benchmark_dataset_release.yaml` if your dataset path differs:
-
-```yaml
-source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/source
-output_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
-scene_manifest: scenes.jsonl
-preset_routes_dir: preset_routes
-custom_routes_dir: custom_routes
-```
-
-Then run:
-
-```bash
+~~~bash
 python -m voln_uav.cli.build_benchmark --config configs/benchmark_dataset_release.yaml
-```
+~~~
 
-The builder writes:
+## Training
 
-- `episodes.jsonl`
-- `train.jsonl`, `val.jsonl`, `test.jsonl`
-- `records/train.jsonl`, `records/val.jsonl`, `records/test.jsonl`
-- `semantic_bank/categories.txt`
-- `summary.json`
+Run the complete real-data pipeline:
 
-## Full Dataset Training
-
-For the packaged dataset at `D:/VoLN_dataset/VoLN-UAV-Dataset-release-full`, the ready-to-run configs are:
-
-- `configs/benchmark_dataset_release.yaml`
-- `configs/train_adapter_dataset_release.yaml`
-- `configs/train_planner_dataset_release.yaml`
-- `configs/eval_offline_dataset_release.yaml`
-- `configs/eval_airsim_dataset_release.yaml`
-
-Install the real-backbone dependencies before full training:
-
-```bash
-pip install -e .[real]
-```
-
-Run the real-data pipeline:
-
-```bash
+~~~bash
 python scripts/run_dataset_release_pipeline.py --device cuda
-```
+~~~
 
-This runs benchmark construction, adapter training, planner training, and offline evaluation. Outputs are written to:
+Run selected stages when resuming or debugging:
 
-```text
-D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
-D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release
-D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release
-D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release
-```
+~~~bash
+python scripts/run_dataset_release_pipeline.py --stages build train-adapter train-planner offline-eval --device cuda
+~~~
 
-Planner training stores reusable image embeddings in the planner run directory and reuses them when training is resumed.
+The VoLN-adapted baselines have separate training entry points and checkpoints. See [baseline documentation](docs/voln_adapted_baselines.md) for Seq2Seq-VG, CMA-VG, and LAG-VG.
 
-To run only selected stages:
+## Evaluation
 
-```bash
-python scripts/run_dataset_release_pipeline.py --stages build train-adapter --device cuda
-python scripts/run_dataset_release_pipeline.py --stages train-planner offline-eval --device cuda
-```
+Offline evaluation:
 
-On Windows, the helper scripts use the dataset-release configs by default:
+~~~bash
+python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_release.yaml --device cuda
+~~~
 
-```bat
-scripts\run_train_adapter.cmd
-scripts\run_train_planner.cmd
-scripts\run_eval_offline.cmd
-```
+AirSim preflight and closed-loop evaluation:
 
-Set `CONFIG`, `DEVICE`, or `PYTHON` before calling a script to override the defaults.
+~~~bash
+python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --preflight
+python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --device cuda
+~~~
 
-## Training And Evaluation
+On Windows, the reference and random online baselines can be evaluated with the same launcher:
 
-```bash
-python -m voln_uav.cli.train_adapter --config configs/train_adapter_library_update.yaml
-python -m voln_uav.cli.train_planner --config configs/train_planner_library_update.yaml
-python -m voln_uav.cli.eval_offline --config configs/eval_library_update.yaml
-```
-
-The offline evaluator reports `SR`, `OSR`, `NE`, `nDTW`, `SPL`, `CT`, and `EER`.
-
-## AirSim Environment Evaluation
-
-```bash
-python airsim_plugin/AirVoLNSimulatorServerTool.py \
-  --root_path /path/to/envs \
-  --scene BrushifyUrban \
-  --port 41451 \
-  --dry_run
-```
-
-Provide `--mapping_json` if your local executable names differ from the default scene mapping.
-
-Check the AirSim setup before loading the model:
-
-```bash
-python -m voln_uav.cli.eval_airsim \
-  --config configs/eval_airsim_dataset_release.yaml \
-  --preflight
-```
-
-After the AirSim scene is running, evaluate the trained policy in the simulator:
-
-```bash
-python -m voln_uav.cli.eval_airsim \
-  --config configs/eval_airsim_dataset_release.yaml \
-  --device cuda
-```
-
-The AirSim evaluator connects to the running simulator, resets each episode to its start pose, captures live RGB observations, executes predicted waypoints with `moveToPositionAsync`, and writes metrics plus executed trajectories to `D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release`.
-
-For trajectory-level sanity checks, run the online reference and random-flight baselines. The default helper uses AirSim movement commands (`moveToPositionAsync`) unless you pass `--control-mode teleport`:
-
-```bat
-set BASELINE=reference
-set TRIALS=10
-scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_reference_pose_10
-
-set BASELINE=random
-set TRIALS=10
-scripts\run_online_baseline.cmd --work-dir D:/VoLN_dataset/VoLN-UAV-runs/online_random_flight_10
-```
-
-For faster test-set sweeps, use the set-pose helper. It resets each episode with `simSetVehiclePose`, executes each action with `simSetVehiclePose`, and skips settle delay by default. This is useful for fast algorithm/metric checks, but it is not a physical flight-dynamics evaluation:
-
-```powershell
+~~~powershell
 cd D:\VoLN_dataset\github-VoLN-UAV
-
 $env:BASELINE="reference"
 $env:TRIALS="10"
-.\scripts\run_fast_online_baseline.cmd
+.\scripts\run_online_baseline.cmd --episode-index 0 --episode-stride 1 --reference-stride 1 --control-mode teleport --fast-reset --settle-sec 0.0 --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+~~~
 
-$env:BASELINE="random"
-$env:TRIALS="10"
-$env:RANDOM_STEPS="80"
-.\scripts\run_fast_online_baseline.cmd --work-dir D:\VoLN_dataset\VoLN-UAV-runs\random_test_10_fast
-```
+Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
 
-The fast helper accepts the same extra options as `run_online_baseline.cmd`. Common overrides are:
+## Repository Structure
 
-```powershell
-.\scripts\run_fast_online_baseline.cmd `
-  --episode-index 0 `
-  --episode-stride 1 `
-  --reference-stride 1 `
-  --stationary-timeout-sec 10 `
-  --stationary-radius-m 0.5 `
-  --settle-sec 0.02
-```
+~~~text
+src/voln_uav/
+  benchmark/      Benchmark construction, visual goals, and beacon augmentation
+  data/           Dataset loaders and release packaging
+  models/         DINO–CLIP adapter, semantic bank, planners, and LoRA modules
+  training/       Adapter/planner training and DAgger-style collection
+  evaluation/     Offline and online metrics
+  simulators/     Route replay and AirSim interfaces
+  cli/            Command-line entry points
+configs/          Dataset, training, and evaluation configurations
+scripts/          Reproducible training and evaluation launchers
+airsim_plugin/    Unreal/AirSim scene utilities
+docs/             Project page, demonstrations, and baseline documentation
+~~~
 
-To summarize a run directory as paper-style metrics:
+## Citation
 
-```bat
-scripts\report_metrics.cmd D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_dataset_release
-```
-
-To inspect the test scene before running full evaluation, start the local RGB stream. The stream command resets the selected episode, places route-aware visual beacons, and serves the live AirSim camera:
-
-```bat
-scripts\start_airsim_stream.cmd
-```
-
-Open `http://127.0.0.1:8765/` in a browser. Useful endpoints are `/status.json`, `/beacons.json`, `/snapshot.jpg`, `/takeoff.json`, `/reference.json?step=18&mode=status`, `/reference.json?step=18&mode=move_to_position`, and `/reference.json?step=18&mode=teleport`.
-
-For a one-episode AirSim smoke test, run:
-
-```bat
-scripts\run_airsim_eval_smoke.cmd
-```
-
-Stop the stream before running AirSim evaluation so that only one client controls the simulator:
-
-```bat
-scripts\stop_airsim_stream.cmd
-```
-
-If you want the evaluator to launch scenes automatically, set `env.auto_launch: true` in `configs/eval_airsim_dataset_release.yaml` and update `configs/airsim_scene_mapping_dataset_release.json` to match the executable paths in your `env` package.
+The manuscript is currently under review. Final bibliographic metadata will be added after the review period. Until then, please cite the project by its title, **“VoLN: Vision-Only Language-Model-Oriented Navigation,”** and link to this repository.
 
 ## Acknowledgement
 
-We thank the authors of TravelUAV and AirVLN for releasing their codebase and providing useful engineering references for UAV navigation projects.
+We thank the authors of TravelUAV and AirVLN for releasing their codebases and providing useful engineering references for UAV navigation research.
