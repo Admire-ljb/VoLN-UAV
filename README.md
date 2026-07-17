@@ -66,7 +66,7 @@ The benchmark combines preset trajectories and operator-collected routes, inject
 ## VoLN-MLLM
 
 <p align="center">
-  <img src="docs/assets/paper/fig5_voln_mllm.png" alt="VoLN-MLLM framework" width="100%">
+  <img src="docs/assets/paper/fig5_method_framework.png" alt="VoLN-MLLM method framework" width="100%">
 </p>
 
 VoLN-MLLM has two stages:
