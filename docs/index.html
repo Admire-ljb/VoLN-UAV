@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Project page for VoLN: Vision-Only Language-Model-Oriented Navigation, the VoLN-UAV benchmark, and the VoLN-MLLM method.">
+  <meta name="author" content="Jiabin Lou, Haopeng Wang, Yuanshuai Wang, Xinyu Liu, Rongye Shi, Wenjun Wu">
   <title>VoLN: Vision-Only Language-Model-Oriented Navigation</title>
   <style>
     :root {
@@ -77,9 +78,23 @@
     }
 
     .publication-authors {
-      margin: 0 0 4px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 5px 18px;
+      margin: 0 0 8px;
       color: var(--link);
       font-size: 19px;
+    }
+
+    .publication-authors span {
+      white-space: nowrap;
+    }
+
+    .publication-authors sup {
+      color: #b3261e;
+      font-size: 0.65em;
+      font-weight: 700;
     }
 
     .publication-affiliation {
@@ -386,13 +401,20 @@
 <body>
   <header class="publication-header">
     <div class="container-wide">
-      <p class="venue">AAAI 2027 Submission</p>
+      <p class="venue">Preprint · 2026</p>
       <h1 class="publication-title">VoLN: Vision-Only Language-Model-Oriented Navigation</h1>
       <p class="publication-subtitle">The VoLN-UAV Benchmark and VoLN-MLLM</p>
 
-      <p class="publication-authors">Anonymous Submission</p>
-      <p class="publication-affiliation">Vision-only embodied navigation for unmanned aerial vehicles</p>
-      <p class="publication-note">Manuscript under review</p>
+      <p class="publication-authors">
+        <span>Jiabin Lou</span>
+        <span>Haopeng Wang</span>
+        <span>Yuanshuai Wang</span>
+        <span>Xinyu Liu</span>
+        <span>Rongye Shi</span>
+        <span>Wenjun Wu<sup>*</sup></span>
+      </p>
+      <p class="publication-affiliation">Beihang University, Beijing, China</p>
+      <p class="publication-note"><sup>*</sup> Corresponding author</p>
 
       <div class="publication-links" aria-label="Project resources">
         <a class="publication-link" href="../paperv1.pdf">Paper</a>
@@ -585,13 +607,13 @@
     <section class="section" id="bibtex">
       <div class="container">
         <h2 class="section-title">BibTeX</h2>
-        <p class="section-lead">Temporary anonymous citation; bibliographic metadata will be updated after the review period.</p>
+        <p class="section-lead">Preprint citation; the arXiv identifier will be added after registration.</p>
         <div class="bibtex-wrap">
-          <pre id="bibtex-code">@misc{anonymous2027voln,
+          <pre id="bibtex-code">@misc{lou2026voln,
   title  = {VoLN: Vision-Only Language-Model-Oriented Navigation},
-  author = {Anonymous Authors},
-  year   = {2027},
-  note   = {Manuscript under review},
+  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Shi, Rongye and Wu, Wenjun},
+  year   = {2026},
+  note   = {Preprint},
   url    = {https://github.com/Admire-ljb/VoLN-UAV}
 }</pre>
           <button class="copy-button" id="copy-bibtex" type="button">Copy</button>

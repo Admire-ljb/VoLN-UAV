@@ -4,6 +4,12 @@
 
 ### VoLN-UAV benchmark and VoLN-MLLM
 
+<p>
+  Jiabin Lou &nbsp;·&nbsp; Haopeng Wang &nbsp;·&nbsp; Yuanshuai Wang &nbsp;·&nbsp; Xinyu Liu &nbsp;·&nbsp; Rongye Shi &nbsp;·&nbsp; Wenjun Wu<sup>*</sup><br>
+  Beihang University, Beijing, China<br>
+  <sup>*</sup> Corresponding author
+</p>
+
 [Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
 [Paper](paperv1.pdf) ·
 [Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
@@ -201,7 +207,17 @@ docs/             Project page, demonstrations, and baseline documentation
 
 ## Citation
 
-The manuscript is currently under review. Final bibliographic metadata will be added after the review period. Until then, please cite the project by its title, **“VoLN: Vision-Only Language-Model-Oriented Navigation,”** and link to this repository.
+Please cite the preprint as follows. The arXiv identifier will be added after registration.
+
+~~~bibtex
+@misc{lou2026voln,
+  title  = {VoLN: Vision-Only Language-Model-Oriented Navigation},
+  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Shi, Rongye and Wu, Wenjun},
+  year   = {2026},
+  note   = {Preprint},
+  url    = {https://github.com/Admire-ljb/VoLN-UAV}
+}
+~~~
 
 ## Acknowledgement
 
