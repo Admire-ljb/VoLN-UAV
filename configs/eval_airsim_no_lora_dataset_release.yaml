@@ -1,0 +1,6 @@
+extends: eval_airsim_dataset_release.yaml
+planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_no_lora_paper/planner_best.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_no_lora_paper
+model:
+  ablation: no_lora
+  lora_enabled: false

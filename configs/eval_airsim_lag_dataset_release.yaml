@@ -2,9 +2,9 @@ seed: 7
 benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_dataset_release/planner_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_lag_dataset_release
+adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper/adapter_best.pt
+planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_vg_paper/planner_best.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_lag_vg_paper
 
 ip: 127.0.0.1
 port: 41451
@@ -17,7 +17,7 @@ teleport_keep_initial_height: false
 teleport_hover_after_setpose: true
 teleport_pause_after_setpose: false
 teleport_zero_velocity: true
-reference_bootstrap_steps: 3
+reference_bootstrap_steps: 0
 move_timeout_sec: 15.0
 settle_sec: 0.05
 connect_timeout_sec: 60.0
@@ -29,10 +29,11 @@ episode_path_length_factor: 2.0
 minimum_episode_path_length_m: 1.0
 stationary_timeout_sec: 10.0
 stationary_radius_m: 0.5
-max_steps: 10000
-success_radius: 0.5
-stop_probability: 0.7
-min_steps_before_stop: 3
+max_steps: 128
+success_radius: 4.0
+stop_probability: null
+min_steps_before_stop: 0
+termination_mode: paper
 
 beacon_placement:
   enabled: true
@@ -58,9 +59,10 @@ env:
 
 model:
   planner_variant: lag
-  dino_backbone: hf:facebook/dinov2-base
-  clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
-  text_encoder: open_clip:ViT-B-32
+  dino_backbone: hf:facebook/dinov3-vitb16-pretrain-lvd1689m
+  dino_dim: 768
+  clip_image_encoder: open_clip:ViT-B-16:openai
+  text_encoder: open_clip:ViT-B-16:openai
   embed_dim: 512
   adapter_hidden: 1024
   image_size: 224

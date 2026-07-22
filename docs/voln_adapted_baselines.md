@@ -14,12 +14,10 @@ This repository includes three optional learned baselines adapted from common VL
 - retrieved semantic tokens from the semantic bank
 - current proprioception / odometry vector
 
-All three baselines predict the same outputs as the main planner:
+All three baselines use the same paper action interface as the main planner:
 
-- anchor waypoint
-- future waypoint sequence
-- stop logit
-- semantic names for logging
+- eight three-dimensional waypoints
+- one stop logit
 
 ## Methods
 
@@ -54,9 +52,9 @@ $env:CONFIG="configs\train_lag_dataset_release.yaml"
 
 Each method writes to a separate run directory:
 
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_dataset_release`
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_cma_dataset_release`
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_dataset_release`
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_vg_paper`
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_cma_vg_paper`
+- `D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_vg_paper`
 
 ## Offline evaluation
 
@@ -84,4 +82,4 @@ $env:CONFIG="configs\eval_airsim_lag_dataset_release.yaml"
 .\scripts\run_airsim_eval.cmd
 ```
 
-The AirSim configs keep the same episode switching, beacon placement, target placement, and half-meter SR logic as the main AirSim evaluation config.
+The release evaluation configs use the same paper protocol as VoLN-MLLM: at most 128 decisions, a 4 m three-dimensional goal region, and SR/SPL counted only when the policy explicitly stops inside the region. Each `planner_best.pt` stores the stop threshold calibrated on Validation-Seen.

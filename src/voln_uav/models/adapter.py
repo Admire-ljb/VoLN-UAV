@@ -42,8 +42,28 @@ def save_adapter(adapter: DINOToCLIPAdapter, path: str | Path, meta: dict[str, A
 
 
 
-def load_adapter(path: str | Path, in_dim: int, hidden_dim: int, out_dim: int, map_location: str = "cpu") -> DINOToCLIPAdapter:
+def load_adapter(
+    path: str | Path,
+    in_dim: int,
+    hidden_dim: int,
+    out_dim: int,
+    map_location: str = "cpu",
+    expected_alignment_mode: str | None = None,
+) -> DINOToCLIPAdapter:
     ckpt = torch.load(path, map_location=map_location)
+    if expected_alignment_mode is not None:
+        meta = ckpt.get("meta", {})
+        trained_mode = str(
+            meta.get(
+                "alignment_mode",
+                meta.get("config", {}).get("alignment_mode", "clip_distill"),
+            )
+        ).lower()
+        if trained_mode != str(expected_alignment_mode).lower():
+            raise ValueError(
+                "Adapter checkpoint/alignment mismatch: "
+                f"checkpoint={trained_mode!r}, expected={expected_alignment_mode!r}"
+            )
     adapter = DINOToCLIPAdapter(in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim)
     adapter.load_state_dict(ckpt["state_dict"])
     return adapter

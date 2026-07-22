@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Project page for VoLN: Vision-Only Language-Model-Oriented Navigation, the VoLN-UAV benchmark, and the VoLN-MLLM method.">
-  <meta name="author" content="Jiabin Lou, Haopeng Wang, Yuanshuai Wang, Xinyu Liu, Rongye Shi, Wenjun Wu">
-  <title>VoLN: Vision-Only Language-Model-Oriented Navigation</title>
+  <meta name="description" content="Project page for VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method; the VoLN-UAV benchmark; and VoLN-MLLM.">
+  <meta name="author" content="Jiabin Lou, Haopeng Wang, Yuanshuai Wang, Xinyu Liu, Xuxin Lv, Yuxin Guo, Lei Huang, Rongye Shi, Wenjun Wu">
+  <title>VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method</title>
   <style>
     :root {
       --text: #363636;
@@ -402,7 +402,7 @@
   <header class="publication-header">
     <div class="container-wide">
       <p class="venue">Preprint · 2026</p>
-      <h1 class="publication-title">VoLN: Vision-Only Language-Model-Oriented Navigation</h1>
+      <h1 class="publication-title">VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method</h1>
       <p class="publication-subtitle">The VoLN-UAV Benchmark and VoLN-MLLM</p>
 
       <p class="publication-authors">
@@ -410,6 +410,9 @@
         <span>Haopeng Wang</span>
         <span>Yuanshuai Wang</span>
         <span>Xinyu Liu</span>
+        <span>Xuxin Lv</span>
+        <span>Yuxin Guo</span>
+        <span>Lei Huang</span>
         <span>Rongye Shi</span>
         <span>Wenjun Wu<sup>*</sup></span>
       </p>
@@ -417,7 +420,7 @@
       <p class="publication-note"><sup>*</sup> Corresponding author</p>
 
       <div class="publication-links" aria-label="Project resources">
-        <a class="publication-link" href="../paperv1.pdf">Paper</a>
+        <a class="publication-link" href="VoLN-UAV-paper.pdf">Paper</a>
         <a class="publication-link" href="https://github.com/Admire-ljb/VoLN-UAV">Code</a>
         <a class="publication-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">Dataset</a>
         <a class="publication-link" href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV">Environments</a>
@@ -439,7 +442,7 @@
       <div class="container">
         <h2 class="section-title">Abstract</h2>
         <p class="abstract-text">
-          Vision-and-Language Navigation (VLN) enables embodied agents to follow natural-language instructions, but a language instruction also implicitly encodes spatial priors, such as orientation, distance, and layout, that an agent cannot recover from onboard sensing in open, GPS-denied environments. When benchmarks provide these priors through text, policies can rely on information unavailable at deployment, and reported performance no longer reflects perception-driven navigation. We propose Vision-only Language-Model-oriented Navigation (VoLN), a platform-independent paradigm that specifies the goal through visual goal views alone and guides navigation with in-scene semantic beacons the agent must recognize, withholding text, maps, GPS, and shortest-path information during execution. We instantiate VoLN on aerial navigation, which combines 3D motion, large viewpoint change, and flight-safety constraints, and introduce VoLN-UAV, a benchmark for long-horizon goal-directed navigation under realistic perceptual constraints. As an initial method, we align self-supervised visual features to a structured semantic space and drive a language-model planner from the resulting representation, keeping the agent vision-only while retaining language-model reasoning. Experiments establish VoLN's feasibility and identify open challenges in long-horizon memory, cross-view re-identification, and closed-loop stability.
+          Vision-and-Language Navigation (VLN) enables embodied agents to follow natural-language instructions. However, route-level instructions commonly encode spatial priors, such as orientation, distance, and layout, that are not explicitly available from onboard sensing at deployment in open, GPS-denied environments. Benchmark performance under such interfaces therefore jointly reflects visual navigation ability and the use of instruction-derived route structure, making perception-driven navigation difficult to isolate. To separate these factors, we propose Vision-Only Long-Horizon Navigation (VoLN), a task formulation in which goal views specify the destination and route-relevant guidance is presented as locally observable in-scene semantic beacons. During execution, the interface provides no externally supplied episode-level text, global maps, GPS, or shortest-path information. We instantiate VoLN for aerial navigation and introduce VoLN-UAV, a benchmark that combines long-horizon goal-directed flight, continuous 3D motion, large viewpoint changes, and context-dependent beacon selection. As an initial method, VoLN-MLLM aligns self-supervised visual features with a structured semantic space and predicts short-horizon waypoint segments from observation history, goal views, retrieved visual-semantic tokens, and proprioception. On Test-Unseen, it achieves success rates of 7.4%, 4.5%, and 1.8% on Easy, Normal, and Hard episodes, respectively. These results provide an initial evaluation of VoLN and reveal substantial remaining challenges in long-horizon evidence integration, cross-view goal matching, and closed-loop stability.
         </p>
       </div>
     </section>
@@ -452,7 +455,7 @@
         <div class="benchmark-stats" aria-label="Dataset statistics">
           <div class="benchmark-stat"><strong>7,210</strong>Episodes</div>
           <div class="benchmark-stat"><strong>5,047</strong>Train</div>
-          <div class="benchmark-stat"><strong>1,082</strong>Validation-Unseen</div>
+          <div class="benchmark-stat"><strong>1,082</strong>Validation-Seen</div>
           <div class="benchmark-stat"><strong>1,081</strong>Test-Unseen</div>
         </div>
 
@@ -481,7 +484,7 @@
         </figure>
 
         <p class="method-summary">
-          <strong>Implementation.</strong> VoLN-MLLM uses a frozen DINOv3 ViT-B/16 backbone, a six-layer Transformer planner with hidden size 512 and eight attention heads, top-8 retrieval from a 300-entry semantic bank, LoRA rank 16, and an action output of eight 3D waypoints plus a stop signal.
+          <strong>Implementation.</strong> VoLN-MLLM uses a frozen DINOv3 ViT-B/16 visual backbone and a frozen Vicuna-7B-v1.5 planner. Top-8 category tokens are retrieved from the fixed semantic bank, rank-16 LoRA modules adapt Vicuna's attention and feed-forward projections, and learned heads output eight 3D waypoints plus a stop signal.
         </p>
       </div>
     </section>
@@ -509,7 +512,7 @@
                 <td>270.1 / 310.4 / 395.2</td>
                 <td>0.4 / 0.0 / 0.0</td>
                 <td>1.4 / 0.6 / 0.2</td>
-                <td>30.1 / – / –</td>
+                <td>30.1 / 22.7 / 15.1</td>
                 <td>0.3 / 0.0 / 0.0</td>
               </tr>
               <tr>
@@ -547,7 +550,7 @@
             </tbody>
           </table>
         </div>
-        <p class="table-note">Values are ordered as Easy / Normal / Hard. Random-policy nDTW for Normal and Hard remains unreported in the current manuscript.</p>
+        <p class="table-note">Values are ordered as Easy / Normal / Hard and follow the current manuscript.</p>
       </div>
     </section>
 
@@ -610,8 +613,8 @@
         <p class="section-lead">Preprint citation; the arXiv identifier will be added after registration.</p>
         <div class="bibtex-wrap">
           <pre id="bibtex-code">@misc{lou2026voln,
-  title  = {VoLN: Vision-Only Language-Model-Oriented Navigation},
-  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Shi, Rongye and Wu, Wenjun},
+  title  = {VoLN: Vision-Only Long-Horizon Navigation---Paradigm, Benchmark, and Method},
+  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Lv, Xuxin and Guo, Yuxin and Huang, Lei and Shi, Rongye and Wu, Wenjun},
   year   = {2026},
   note   = {Preprint},
   url    = {https://github.com/Admire-ljb/VoLN-UAV}

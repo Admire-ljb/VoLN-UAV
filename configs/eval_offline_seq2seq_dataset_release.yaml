@@ -2,17 +2,19 @@ seed: 7
 benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_dataset_release/planner_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_seq2seq_dataset_release
+adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper/adapter_best.pt
+planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_vg_paper/planner_best.pt
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_seq2seq_vg_paper
 budget_sec: 2.0
 max_steps: 128
-success_radius: 20.0
+success_radius: 4.0
+stop_probability: null
 model:
   planner_variant: seq2seq
-  dino_backbone: hf:facebook/dinov2-base
-  clip_image_encoder: open_clip:ViT-B-32:laion2b_s34b_b79k
-  text_encoder: open_clip:ViT-B-32
+  dino_backbone: hf:facebook/dinov3-vitb16-pretrain-lvd1689m
+  dino_dim: 768
+  clip_image_encoder: open_clip:ViT-B-16:openai
+  text_encoder: open_clip:ViT-B-16:openai
   embed_dim: 512
   adapter_hidden: 1024
   image_size: 224

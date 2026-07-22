@@ -12,9 +12,9 @@ def parse_open_clip_spec(spec: str) -> tuple[str, str]:
     # format: open_clip:<model_name>[:<pretrained_tag>]
     parts = spec.split(":")
     if len(parts) < 2 or not parts[1]:
-        return "ViT-B-32", "laion2b_s34b_b79k"
+        return "ViT-B-16", "openai"
     model_name = parts[1]
-    pretrained = parts[2] if len(parts) >= 3 and parts[2] else "laion2b_s34b_b79k"
+    pretrained = parts[2] if len(parts) >= 3 and parts[2] else "openai"
     return model_name, pretrained
 
 
@@ -86,6 +86,10 @@ class OpenCLIPImageEncoder(FrozenModule):
         except Exception as e:  # pragma: no cover
             raise ImportError("Install open-clip-torch to use OpenCLIP image encoders.") from e
         self.model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+        mean = getattr(self.model.visual, "image_mean", (0.48145466, 0.4578275, 0.40821073))
+        std = getattr(self.model.visual, "image_std", (0.26862954, 0.26130258, 0.27577711))
+        self.register_buffer("image_mean", torch.tensor(mean, dtype=torch.float32).view(1, 3, 1, 1))
+        self.register_buffer("image_std", torch.tensor(std, dtype=torch.float32).view(1, 3, 1, 1))
         # OpenCLIP image head width differs across variants; run a tiny dry forward to infer.
         with torch.no_grad():
             dummy = torch.zeros(1, 3, 224, 224)
@@ -96,7 +100,8 @@ class OpenCLIPImageEncoder(FrozenModule):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            feat = self.model.encode_image(x)
+            normalized = (x - self.image_mean.to(dtype=x.dtype)) / self.image_std.to(dtype=x.dtype)
+            feat = self.model.encode_image(normalized)
         out = self.proj(feat)
         return torch.nn.functional.normalize(out, dim=-1)
 
@@ -105,17 +110,23 @@ class HFVisionEncoder(FrozenModule):
     def __init__(self, model_name: str, out_dim: int) -> None:
         super().__init__()
         try:
-            from transformers import AutoModel
+            from transformers import AutoImageProcessor, AutoModel
         except Exception as e:  # pragma: no cover
             raise ImportError("Install transformers to use HuggingFace vision encoders.") from e
+        self.processor = AutoImageProcessor.from_pretrained(model_name)
         self.backbone = AutoModel.from_pretrained(model_name)
         hidden = int(self.backbone.config.hidden_size)
         self.proj = nn.Identity() if hidden == out_dim else nn.Linear(hidden, out_dim)
+        mean = getattr(self.processor, "image_mean", (0.485, 0.456, 0.406))
+        std = getattr(self.processor, "image_std", (0.229, 0.224, 0.225))
+        self.register_buffer("image_mean", torch.tensor(mean, dtype=torch.float32).view(1, 3, 1, 1))
+        self.register_buffer("image_std", torch.tensor(std, dtype=torch.float32).view(1, 3, 1, 1))
         self.freeze()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # The dataset already outputs normalized float tensors in CHW format.
-        out = self.backbone(pixel_values=x)
+        # Dataset tensors are RGB in [0, 1]; apply the backbone's published normalization.
+        normalized = (x - self.image_mean.to(dtype=x.dtype)) / self.image_std.to(dtype=x.dtype)
+        out = self.backbone(pixel_values=normalized)
         if hasattr(out, "pooler_output") and out.pooler_output is not None:
             feat = out.pooler_output
         else:

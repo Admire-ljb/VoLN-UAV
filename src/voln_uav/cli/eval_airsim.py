@@ -9,6 +9,12 @@ from voln_uav.common.seed import set_seed
 from voln_uav.common.io import read_jsonl
 
 
+PAPER_SPLITS = {
+    "validation_seen": "val.jsonl",
+    "test_unseen": "test.jsonl",
+}
+
+
 def default_device() -> str:
     try:
         import torch
@@ -21,6 +27,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run VoLN-UAV closed-loop evaluation in an AirSim environment.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--device", default=default_device())
+    parser.add_argument("--controller", choices=["policy", "random", "reference"], help="Evaluation controller override.")
+    split_group = parser.add_mutually_exclusive_group()
+    split_group.add_argument(
+        "--split",
+        choices=sorted(PAPER_SPLITS),
+        help="Paper evaluation split. validation_seen maps to val.jsonl; test_unseen maps to test.jsonl.",
+    )
+    split_group.add_argument("--episodes-file", help="Custom episode JSONL path relative to benchmark_root.")
     parser.add_argument("--preflight", action="store_true", help="Check AirSim dependencies and scene access without loading the model.")
     parser.add_argument("--trials", type=int, help="Number of episodes to run after episode-index/stride filtering.")
     parser.add_argument("--episode-index", type=int, help="First episode index after split/scene/difficulty filtering.")
@@ -43,6 +57,12 @@ def main() -> None:
     parser.add_argument("--work-dir", help="Directory for metrics, trajectories, and beacon placement logs.")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    if args.split is not None:
+        cfg["episodes_file"] = PAPER_SPLITS[args.split]
+    elif args.episodes_file is not None:
+        cfg["episodes_file"] = args.episodes_file
+    if args.controller is not None:
+        cfg["controller"] = args.controller
     if args.trials is not None:
         cfg["trials"] = args.trials
     if args.episode_index is not None:
@@ -76,7 +96,12 @@ def main() -> None:
     from voln_uav.evaluation.airsim_loop import AirSimClosedLoopEvaluator, check_airsim_readiness
 
     if args.preflight:
-        episodes = read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"])
+        from voln_uav.evaluation.airsim_loop import filter_airsim_episodes
+
+        episodes = filter_airsim_episodes(
+            cfg,
+            read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"]),
+        )
         issues = check_airsim_readiness(cfg, episodes)
         print(json.dumps({"ok": not issues, "issues": issues}, indent=2))
         raise SystemExit(1 if issues else 0)

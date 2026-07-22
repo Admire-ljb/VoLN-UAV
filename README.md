@@ -1,11 +1,11 @@
 <div align="center">
 
-# VoLN: Vision-Only Language-Model-Oriented Navigation
+# VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method
 
 ### VoLN-UAV benchmark and VoLN-MLLM
 
 <p>
-  Jiabin Lou &nbsp;·&nbsp; Haopeng Wang &nbsp;·&nbsp; Yuanshuai Wang &nbsp;·&nbsp; Xinyu Liu &nbsp;·&nbsp; Rongye Shi &nbsp;·&nbsp; Wenjun Wu<sup>*</sup><br>
+  Jiabin Lou &nbsp;·&nbsp; Haopeng Wang &nbsp;·&nbsp; Yuanshuai Wang &nbsp;·&nbsp; Xinyu Liu &nbsp;·&nbsp; Xuxin Lv &nbsp;·&nbsp; Yuxin Guo &nbsp;·&nbsp; Lei Huang &nbsp;·&nbsp; Rongye Shi &nbsp;·&nbsp; Wenjun Wu<sup>*</sup><br>
   Beihang University, Beijing, China<br>
   <sup>*</sup> Corresponding author
 </p>
@@ -54,7 +54,7 @@ The current manuscript defines **7,210 benchmark episodes** with scene-level dis
 | Split | Episodes | Ratio | Evaluation name |
 |---|---:|---:|---|
 | Train | 5,047 | 70% | Train |
-| Validation | 1,082 | 15% | Validation-Unseen |
+| Validation | 1,082 | 15% | Validation-Seen |
 | Test | 1,081 | 15% | Test-Unseen |
 
 Difficulty is determined by reference path length:
@@ -78,7 +78,7 @@ The benchmark combines preset trajectories and operator-collected routes, inject
 VoLN-MLLM has two stages:
 
 1. **Visual-semantic alignment.** A lightweight adapter maps frozen DINOv3 ViT-B/16 features into the frozen CLIP ViT-B/16 image-embedding space using cosine distillation.
-2. **Trajectory planning.** A six-layer Transformer planner combines the aligned observation, terminal goal views, proprioception, and top-8 tokens retrieved from a 300-entry semantic bank. LoRA rank-16 adapters specialize the planner to predict eight 3D waypoints and a stop signal.
+2. **Trajectory planning.** A frozen Vicuna-7B-v1.5 backbone jointly encodes aligned observation history, goal views, proprioception, and top-8 category tokens retrieved from the fixed semantic bank. Rank-16 LoRA modules adapt its attention and feed-forward projections; learned heads predict eight 3D waypoints and a stop signal.
 
 ## Main Results
 
@@ -86,13 +86,15 @@ Test-Unseen results from the current manuscript are shown below. Each entry is o
 
 | Method | NE (m) ↓ | SR (%) ↑ | OSR (%) ↑ | nDTW (%) ↑ | SPL (%) ↑ |
 |---|---:|---:|---:|---:|---:|
-| Random | 270.1 / 310.4 / 395.2 | 0.4 / 0.0 / 0.0 | 1.4 / 0.6 / 0.2 | 30.1 / – / – | 0.3 / 0.0 / 0.0 |
+| Random | 270.1 / 310.4 / 395.2 | 0.4 / 0.0 / 0.0 | 1.4 / 0.6 / 0.2 | 30.1 / 22.7 / 15.1 | 0.3 / 0.0 / 0.0 |
 | Seq2Seq-VG | 208.6 / 254.8 / 309.9 | 1.0 / 0.4 / 0.1 | 4.8 / 2.5 / 0.9 | 28.9 / 21.4 / 13.0 | 0.7 / 0.3 / 0.0 |
 | CMA-VG | 174.5 / 216.8 / 266.1 | 1.6 / 0.8 / 0.2 | 6.5 / 3.9 / 1.7 | 33.2 / 26.4 / 18.5 | 1.1 / 0.6 / 0.1 |
 | LAG-VG | 122.4 / 158.3 / 206.7 | 2.3 / 1.2 / 0.4 | 6.4 / 3.8 / 1.7 | 28.1 / 20.5 / 14.0 | 1.5 / 0.7 / 0.2 |
 | **VoLN-MLLM** | **97.1 / 131.4 / 176.8** | **7.4 / 4.5 / 1.8** | **14.6 / 10.1 / 4.5** | **53.1 / 41.2 / 28.0** | **5.7 / 3.2 / 1.3** |
 
 The trained baselines are visual-goal adaptations of instruction-following navigation models. All methods receive the same VoLN observations and share waypoint supervision, action interface, stopping rule, and evaluation protocol.
+
+The paper protocol uses at most 128 decisions per episode and a 4 m three-dimensional goal region. SR and SPL require the policy to issue an explicit stop inside that region; OSR records whether the executed trajectory enters it at any time. The stop threshold is calibrated on Validation-Seen and stored in `planner_best.pt`.
 
 ## Qualitative Results
 
@@ -162,6 +164,14 @@ python scripts/run_dataset_release_pipeline.py --stages build train-adapter trai
 
 The VoLN-adapted baselines have separate training entry points and checkpoints. See [baseline documentation](docs/voln_adapted_baselines.md) for Seq2Seq-VG, CMA-VG, and LAG-VG.
 
+Run the three manuscript ablations (`No-Align`, `No-LoRA`, and `CLIP-Input`) with their independent checkpoints:
+
+~~~bash
+python scripts/run_paper_ablations.py --stages train offline --device cuda
+~~~
+
+`No-Align` saves an untrained dimensional adapter without CLIP-teacher supervision, `No-LoRA` freezes Vicuna without inserting LoRA branches, and `CLIP-Input` feeds frozen CLIP ViT-B/16 image features directly to the planner.
+
 ## Evaluation
 
 Offline evaluation:
@@ -211,8 +221,8 @@ Please cite the preprint as follows. The arXiv identifier will be added after re
 
 ~~~bibtex
 @misc{lou2026voln,
-  title  = {VoLN: Vision-Only Language-Model-Oriented Navigation},
-  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Shi, Rongye and Wu, Wenjun},
+  title  = {VoLN: Vision-Only Long-Horizon Navigation---Paradigm, Benchmark, and Method},
+  author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Lv, Xuxin and Guo, Yuxin and Huang, Lei and Shi, Rongye and Wu, Wenjun},
   year   = {2026},
   note   = {Preprint},
   url    = {https://github.com/Admire-ljb/VoLN-UAV}
