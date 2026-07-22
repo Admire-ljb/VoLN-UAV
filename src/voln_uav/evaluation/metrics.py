@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from voln_uav.common.geometry import l2, l2_xy, path_length
+from voln_uav.common.geometry import l2, path_length
 
 
 Vec3 = Sequence[float]
@@ -19,13 +19,14 @@ def navigation_error(pred_path: Sequence[Vec3], goal: Vec3) -> float:
 
 
 
-def success(pred_path: Sequence[Vec3], goal: Vec3, radius: float) -> bool:
-    return bool(pred_path) and l2_xy(pred_path[-1], goal) <= radius
+def success(pred_path: Sequence[Vec3], goal: Vec3, radius: float, stopped: bool = True) -> bool:
+    """SR requires an explicit stop inside the three-dimensional goal region."""
+    return bool(stopped and pred_path) and l2(pred_path[-1], goal) <= radius
 
 
 
 def oracle_success(pred_path: Sequence[Vec3], goal: Vec3, radius: float) -> bool:
-    return any(l2_xy(p, goal) <= radius for p in pred_path)
+    return any(l2(p, goal) <= radius for p in pred_path)
 
 
 
@@ -47,13 +48,20 @@ def ndtw(pred_path: Sequence[Vec3], ref_path: Sequence[Vec3], success_radius: fl
     if not pred_path or not ref_path:
         return 0.0
     dist = dtw_distance(pred_path, ref_path)
-    ref_len = max(path_length(ref_path), 1e-6)
-    return math.exp(-dist / (success_radius * ref_len))
+    # Standard nDTW normalizes accumulated DTW error by the number of points
+    # in the reference trajectory and the task success threshold.
+    return math.exp(-dist / (max(float(success_radius), 1e-6) * len(ref_path)))
 
 
 
-def spl(pred_path: Sequence[Vec3], goal: Vec3, success_radius: float, shortest_path_length: float) -> float:
-    succ = 1.0 if success(pred_path, goal, success_radius) else 0.0
+def spl(
+    pred_path: Sequence[Vec3],
+    goal: Vec3,
+    success_radius: float,
+    shortest_path_length: float,
+    stopped: bool = True,
+) -> float:
+    succ = 1.0 if success(pred_path, goal, success_radius, stopped=stopped) else 0.0
     actual = max(path_length(pred_path), 1e-6)
     optimal = max(float(shortest_path_length), 1e-6)
     return succ * optimal / max(actual, optimal)
@@ -66,13 +74,20 @@ def reference_travel_time(ref_path: Sequence[Vec3], speed_mps: float) -> float:
     return path_length(ref_path) / speed
 
 
-def summarize_episode(pred_path: Sequence[Vec3], ref_path: Sequence[Vec3], goal: Vec3, success_radius: float, shortest_path_length: float) -> dict[str, float]:
+def summarize_episode(
+    pred_path: Sequence[Vec3],
+    ref_path: Sequence[Vec3],
+    goal: Vec3,
+    success_radius: float,
+    shortest_path_length: float,
+    stopped: bool = True,
+) -> dict[str, float]:
     return {
         "NE": navigation_error(pred_path, goal),
-        "SR": float(success(pred_path, goal, success_radius)),
+        "SR": float(success(pred_path, goal, success_radius, stopped=stopped)),
         "OSR": float(oracle_success(pred_path, goal, success_radius)),
         "nDTW": ndtw(pred_path, ref_path, success_radius),
-        "SPL": spl(pred_path, goal, success_radius, shortest_path_length),
+        "SPL": spl(pred_path, goal, success_radius, shortest_path_length, stopped=stopped),
     }
 
 

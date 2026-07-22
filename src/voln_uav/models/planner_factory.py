@@ -43,16 +43,29 @@ def build_planner(
     except KeyError as exc:
         known = ", ".join(sorted(PLANNER_VARIANTS))
         raise ValueError(f"Unknown planner_variant={variant!r}. Expected one of: {known}") from exc
+    kwargs: dict[str, Any] = {
+        "dino_encoder": dino_encoder,
+        "adapter": adapter,
+        "semantic_bank": semantic_bank,
+        "embed_dim": int(model_cfg["embed_dim"]),
+        "hidden_dim": int(model_cfg.get("hidden_dim", 512)),
+        "num_heads": int(model_cfg.get("num_heads", 8)),
+        "num_layers": int(model_cfg.get("num_layers", 6)),
+        "lora_rank": int(model_cfg["lora_rank"]),
+        "horizon": int(model_cfg["horizon"]),
+        "top_k_semantic": int(model_cfg["top_k_semantic"]),
+        "cache_image_embeddings": cache_image_embeddings,
+    }
+    if planner_cls is VoLNPlanner:
+        kwargs.update(
+            planner_backbone=model_cfg.get("planner_backbone"),
+            lora_enabled=bool(model_cfg.get("lora_enabled", True)),
+            lora_alpha=model_cfg.get("lora_alpha"),
+            lora_dropout=float(model_cfg.get("lora_dropout", 0.05)),
+            lora_target_modules=model_cfg.get("lora_target_modules"),
+            torch_dtype=str(model_cfg.get("torch_dtype", "bfloat16")),
+            gradient_checkpointing=bool(model_cfg.get("gradient_checkpointing", True)),
+        )
     return planner_cls(
-        dino_encoder=dino_encoder,
-        adapter=adapter,
-        semantic_bank=semantic_bank,
-        embed_dim=int(model_cfg["embed_dim"]),
-        hidden_dim=int(model_cfg["hidden_dim"]),
-        num_heads=int(model_cfg["num_heads"]),
-        num_layers=int(model_cfg["num_layers"]),
-        lora_rank=int(model_cfg["lora_rank"]),
-        horizon=int(model_cfg["horizon"]),
-        top_k_semantic=int(model_cfg["top_k_semantic"]),
-        cache_image_embeddings=cache_image_embeddings,
+        **kwargs,
     )

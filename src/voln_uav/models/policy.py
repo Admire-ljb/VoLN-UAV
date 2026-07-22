@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
 import torch
 
 from voln_uav.common.image import load_image_tensor
-from voln_uav.models.adapter import load_adapter
-from voln_uav.models.encoders import build_image_encoder
+from voln_uav.models.planner import load_planner_state
 from voln_uav.models.planner_factory import build_planner
 from voln_uav.models.semantic_bank import SemanticBank
+from voln_uav.models.vision import build_planner_vision
 
 
 class VoLNPolicy:
-    def __init__(self, config: dict[str, Any], semantic_bank_path: str | Path, adapter_ckpt: str | Path, planner_ckpt: str | Path, device: str = "cpu") -> None:
+    def __init__(self, config: dict[str, Any], semantic_bank_path: str | Path, adapter_ckpt: str | Path | None, planner_ckpt: str | Path, device: str = "cpu") -> None:
         self.cfg = config
         model_cfg = config["model"]
         self.device = torch.device(device)
@@ -26,13 +27,62 @@ class VoLNPolicy:
         self.image_size = image_size
 
         ckpt = torch.load(planner_ckpt, map_location=self.device)
+        self.stop_threshold = float(ckpt.get("meta", {}).get("stop_threshold", 0.5))
         ckpt_model_cfg = ckpt.get("meta", {}).get("config", {}).get("model", {})
         if "planner_variant" not in model_cfg and "planner_variant" in ckpt_model_cfg:
             model_cfg = dict(model_cfg)
             model_cfg["planner_variant"] = ckpt_model_cfg["planner_variant"]
+        defaults: dict[str, Any] = {
+            "vision_input": "dino_aligned",
+            "lora_enabled": True,
+            "planner_variant": "voln",
+            "ablation": None,
+            "image_size": 224,
+            "hidden_dim": 512,
+            "num_heads": 8,
+            "num_layers": 6,
+            "lora_alpha": None,
+            "lora_dropout": 0.05,
+            "lora_target_modules": None,
+        }
+        signature_keys = (
+            "planner_variant",
+            "ablation",
+            "vision_input",
+            "dino_backbone",
+            "dino_dim",
+            "clip_image_encoder",
+            "text_encoder",
+            "embed_dim",
+            "adapter_hidden",
+            "image_size",
+            "planner_backbone",
+            "hidden_dim",
+            "num_heads",
+            "num_layers",
+            "lora_enabled",
+            "lora_rank",
+            "lora_alpha",
+            "lora_dropout",
+            "lora_target_modules",
+            "horizon",
+            "top_k_semantic",
+            "memory_len",
+        )
+        mismatches = []
+        for key in signature_keys:
+            current = model_cfg.get(key, defaults.get(key))
+            trained = ckpt_model_cfg.get(key, defaults.get(key))
+            if current != trained:
+                mismatches.append(f"{key}: checkpoint={trained!r}, evaluation={current!r}")
+        if mismatches:
+            raise ValueError("Planner checkpoint/config mismatch:\n- " + "\n- ".join(mismatches))
 
-        dino_encoder = build_image_encoder(model_cfg["dino_backbone"], out_dim=embed_dim, image_size=image_size)
-        adapter = load_adapter(adapter_ckpt, in_dim=embed_dim, hidden_dim=int(model_cfg["adapter_hidden"]), out_dim=embed_dim)
+        dino_encoder, adapter, _vision_dim = build_planner_vision(
+            model_cfg,
+            adapter_ckpt=adapter_ckpt,
+            map_location=str(self.device),
+        )
         semantic_bank = SemanticBank.from_file(semantic_bank_path, encoder_name=model_cfg["text_encoder"], dim=embed_dim)
         self.planner = build_planner(
             model_cfg=model_cfg,
@@ -40,7 +90,7 @@ class VoLNPolicy:
             adapter=adapter,
             semantic_bank=semantic_bank,
         )
-        self.planner.load_state_dict(ckpt["state_dict"], strict=True)
+        load_planner_state(self.planner, ckpt)
         self.planner.to(self.device)
         self.planner.eval()
 
@@ -91,6 +141,12 @@ class VoLNPolicy:
         waypoints = out["waypoints"][0].cpu()
         anchor = out["anchor"][0].cpu()
         stop_prob = torch.sigmoid(out["stop_logit"])[0].item()
+        if waypoints.shape != (int(self.cfg["model"]["horizon"]), 3):
+            raise ValueError(f"Invalid waypoint output shape: {tuple(waypoints.shape)}")
+        if not torch.isfinite(waypoints).all() or not torch.isfinite(anchor).all():
+            raise ValueError("Planner produced non-finite waypoint output")
+        if not math.isfinite(stop_prob):
+            raise ValueError("Planner produced a non-finite stop probability")
         return {
             "waypoints": waypoints,
             "anchor": anchor,

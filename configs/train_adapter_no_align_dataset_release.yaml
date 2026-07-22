@@ -1,0 +1,3 @@
+extends: train_adapter_dataset_release.yaml
+alignment_mode: no_align
+work_dir: D:/VoLN_dataset/VoLN-UAV-runs/adapter_no_align_paper

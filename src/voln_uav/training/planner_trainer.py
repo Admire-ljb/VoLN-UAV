@@ -7,15 +7,15 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
+from voln_uav.common.geometry import l2
 from voln_uav.common.image import load_image_tensor
 from voln_uav.common.io import ensure_dir, read_json, write_json
 from voln_uav.data.collate import default_collate_dict
 from voln_uav.data.episode_dataset import PlannerDataset
-from voln_uav.models.adapter import load_adapter
-from voln_uav.models.encoders import build_image_encoder
-from voln_uav.models.planner import save_planner
+from voln_uav.models.planner import load_planner_state, save_planner
 from voln_uav.models.planner_factory import build_planner, normalize_planner_variant
 from voln_uav.models.semantic_bank import SemanticBank
+from voln_uav.models.vision import build_planner_vision
 from voln_uav.training.losses import planner_loss
 
 
@@ -25,6 +25,7 @@ class PlannerTrainer:
         self.device = torch.device(device)
         model_cfg = config["model"]
         self.embed_dim = int(model_cfg["embed_dim"])
+        self.dino_dim = int(model_cfg.get("dino_dim", self.embed_dim))
         self.work_dir = ensure_dir(config["work_dir"])
         self.train_dataset = PlannerDataset(
             benchmark_root=config["benchmark_root"],
@@ -44,6 +45,10 @@ class PlannerTrainer:
         max_val_records = config.get("max_val_records", config.get("max_records"))
         if max_val_records is not None:
             self.val_dataset = Subset(self.val_dataset, range(min(int(max_val_records), len(self.val_dataset))))
+        self.stop_targets = self._build_stop_targets(
+            (self.train_dataset, self.val_dataset),
+            success_radius=float(config["success_radius"]),
+        )
         self.train_loader = DataLoader(
             self.train_dataset,
             batch_size=int(config["batch_size"]),
@@ -58,8 +63,11 @@ class PlannerTrainer:
             num_workers=int(config.get("num_workers", 0)),
             collate_fn=default_collate_dict,
         )
-        dino_encoder = build_image_encoder(model_cfg["dino_backbone"], out_dim=self.embed_dim, image_size=int(model_cfg.get("image_size", 64)))
-        adapter = load_adapter(config["adapter_ckpt"], in_dim=self.embed_dim, hidden_dim=int(model_cfg["adapter_hidden"]), out_dim=self.embed_dim)
+        dino_encoder, adapter, self.dino_dim = build_planner_vision(
+            model_cfg,
+            adapter_ckpt=config.get("adapter_ckpt"),
+            map_location=str(self.device),
+        )
         self._precompute_image_embeddings(
             dino_encoder=dino_encoder,
             adapter=adapter,
@@ -73,11 +81,33 @@ class PlannerTrainer:
             semantic_bank=semantic_bank,
             cache_image_embeddings=bool(config.get("cache_image_embeddings", model_cfg.get("cache_image_embeddings", False))),
         ).to(self.device)
+        if bool(config.get("precompute_image_embeddings", False)):
+            # Phase-II batches already contain aligned embeddings, so keeping the
+            # frozen DINO and adapter on CPU preserves GPU memory for Vicuna.
+            self.planner.dino_encoder.to("cpu")
+            self.planner.adapter.to("cpu")
         self.optimizer = torch.optim.AdamW(
             [p for p in self.planner.parameters() if p.requires_grad],
             lr=float(config["lr"]),
             weight_decay=float(config.get("weight_decay", 0.0)),
         )
+
+    @classmethod
+    def _build_stop_targets(
+        cls,
+        datasets: tuple[PlannerDataset | Subset, ...],
+        success_radius: float,
+    ) -> dict[str, float]:
+        targets: dict[str, float] = {}
+        for dataset in datasets:
+            root, indices = cls._root_dataset_and_indices(dataset)
+            for idx in indices:
+                record = root.records[idx]
+                episode = root.episodes[record["episode_id"]]
+                current = episode["states"][int(record["step"])]["position"]
+                goal = episode["states"][-1]["position"]
+                targets[str(record["record_id"])] = float(l2(current, goal) <= success_radius)
+        return targets
 
     @staticmethod
     def _root_dataset_and_indices(dataset: PlannerDataset | Subset) -> tuple[PlannerDataset, list[int]]:
@@ -161,28 +191,41 @@ class PlannerTrainer:
 
     def _run_epoch(self, loader: DataLoader, train: bool) -> dict[str, float]:
         self.planner.train(mode=train)
-        running = {"total": 0.0, "waypoint_l1": 0.0, "anchor_l1": 0.0, "stop_bce": 0.0}
+        running = {"total": 0.0, "waypoint_l1": 0.0, "stop_bce": 0.0}
         count = 0
         iterator = tqdm(loader, desc="planner-train" if train else "planner-val")
-        for batch in iterator:
+        accumulation_steps = max(int(self.cfg.get("gradient_accumulation_steps", 1)), 1)
+        if train:
+            self.optimizer.zero_grad(set_to_none=True)
+        for batch_idx, batch in enumerate(iterator, start=1):
             batch = self._move_batch(batch)
+            target_stop = torch.tensor(
+                [self.stop_targets[str(record_id)] for record_id in batch["record_id"]],
+                dtype=torch.float32,
+                device=self.device,
+            )
             with torch.set_grad_enabled(train):
                 out = self.planner(batch)
                 loss, loss_items = planner_loss(
                     pred_waypoints=out["waypoints"],
                     target_waypoints=batch["future_waypoints"],
-                    pred_anchor=out["anchor"],
-                    target_anchor=batch["anchor_waypoint"],
                     pred_stop_logit=out["stop_logit"],
-                    target_stop=batch["stop"],
+                    target_stop=target_stop,
                     waypoint_l1_weight=float(self.cfg["loss"]["waypoint_l1_weight"]),
-                    anchor_weight=float(self.cfg["loss"]["anchor_weight"]),
                     stop_weight=float(self.cfg["loss"]["stop_weight"]),
                 )
             if train:
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                (loss / accumulation_steps).backward()
+                should_step = batch_idx % accumulation_steps == 0 or batch_idx == len(loader)
+                if should_step:
+                    max_grad_norm = float(self.cfg.get("max_grad_norm", 1.0))
+                    if max_grad_norm > 0:
+                        torch.nn.utils.clip_grad_norm_(
+                            [p for p in self.planner.parameters() if p.requires_grad],
+                            max_grad_norm,
+                        )
+                    self.optimizer.step()
+                    self.optimizer.zero_grad(set_to_none=True)
             for k in running:
                 running[k] += loss_items[k]
             count += 1
@@ -206,6 +249,37 @@ class PlannerTrainer:
         except (KeyError, TypeError, ValueError):
             return float("inf")
 
+    @torch.no_grad()
+    def _calibrate_stop_threshold(self) -> tuple[float, dict[str, float]]:
+        self.planner.eval()
+        probabilities: list[float] = []
+        labels: list[int] = []
+        for batch in tqdm(self.val_loader, desc="calibrate-stop"):
+            batch = self._move_batch(batch)
+            output = self.planner(batch)
+            probabilities.extend(torch.sigmoid(output["stop_logit"]).detach().float().cpu().tolist())
+            labels.extend(int(self.stop_targets[str(record_id)]) for record_id in batch["record_id"])
+
+        candidates = self.cfg.get("stop_threshold_candidates")
+        if candidates is None:
+            candidates = [index / 100.0 for index in range(5, 100, 5)]
+        best_threshold = 0.5
+        best_stats = {"f1": -1.0, "precision": 0.0, "recall": 0.0}
+        for candidate in candidates:
+            threshold = float(candidate)
+            predictions = [probability >= threshold for probability in probabilities]
+            tp = sum(pred and label == 1 for pred, label in zip(predictions, labels))
+            fp = sum(pred and label == 0 for pred, label in zip(predictions, labels))
+            fn = sum((not pred) and label == 1 for pred, label in zip(predictions, labels))
+            precision = tp / max(tp + fp, 1)
+            recall = tp / max(tp + fn, 1)
+            f1 = 2.0 * precision * recall / max(precision + recall, 1e-12)
+            stats = {"f1": f1, "precision": precision, "recall": recall}
+            if (f1, -abs(threshold - 0.5)) > (best_stats["f1"], -abs(best_threshold - 0.5)):
+                best_threshold = threshold
+                best_stats = stats
+        return best_threshold, best_stats
+
     def _maybe_resume(self, last_path: Path, best_path: Path) -> tuple[int, list[dict[str, Any]], float]:
         history: list[dict[str, Any]] = []
         best_val = self._load_meta_val(best_path)
@@ -213,7 +287,7 @@ class PlannerTrainer:
             return 1, history, best_val
 
         checkpoint = torch.load(last_path, map_location=self.device)
-        self.planner.load_state_dict(checkpoint["state_dict"])
+        load_planner_state(self.planner, checkpoint)
         meta = checkpoint.get("meta", {})
         start_epoch = int(meta.get("epoch", 0)) + 1
         history = self._load_history()
@@ -240,6 +314,19 @@ class PlannerTrainer:
                 best_val = val_metrics["total"]
                 save_planner(self.planner, best_path, meta={"epoch": epoch, "config": self.cfg, "planner_variant": normalize_planner_variant(self.cfg["model"]), "val_total": val_metrics["total"]})
             write_json({"history": history, "best_val": best_val, "best_ckpt": str(best_path), "last_ckpt": str(last_path)}, self.work_dir / "metrics.json")
-        summary = {"history": history, "best_val": best_val, "best_ckpt": str(best_path), "last_ckpt": str(last_path)}
+        best_checkpoint = torch.load(best_path, map_location=self.device)
+        load_planner_state(self.planner, best_checkpoint)
+        stop_threshold, stop_calibration = self._calibrate_stop_threshold()
+        best_meta = dict(best_checkpoint.get("meta", {}))
+        best_meta.update({"stop_threshold": stop_threshold, "stop_calibration": stop_calibration})
+        save_planner(self.planner, best_path, meta=best_meta)
+        summary = {
+            "history": history,
+            "best_val": best_val,
+            "best_ckpt": str(best_path),
+            "last_ckpt": str(last_path),
+            "stop_threshold": stop_threshold,
+            "stop_calibration": stop_calibration,
+        }
         write_json(summary, self.work_dir / "metrics.json")
         return summary

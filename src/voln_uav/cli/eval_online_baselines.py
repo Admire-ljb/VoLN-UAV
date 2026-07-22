@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from voln_uav.common.config import load_config
-from voln_uav.common.geometry import l2, l2_xy, path_length
+from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.evaluation.airsim_loop import check_airsim_readiness
 from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
@@ -41,44 +41,25 @@ def _reference_targets(episode: dict[str, Any], stride: int, start_index: int = 
     return targets
 
 
-def _random_targets(episode: dict[str, Any], rng: random.Random, steps: int | None, stride: int, start_index: int = 0) -> list[list[float]]:
+def _random_targets(
+    episode: dict[str, Any],
+    rng: random.Random,
+    steps: int,
+    max_step_m: float,
+    max_vertical_step_m: float,
+    start_index: int = 0,
+) -> list[list[float]]:
     ref = [[float(v) for v in state["position"][:3]] for state in episode["states"]]
     start = min(max(int(start_index), 0), max(len(ref) - 1, 0))
-    count = int(steps) if steps is not None else max(4, math.ceil((len(ref) - start) / max(int(stride), 1)))
-    count = max(count, 2)
-    xs = [p[0] for p in ref]
-    ys = [p[1] for p in ref]
-    zs = [p[2] for p in ref]
-    margin_xy = max(path_length(ref) * 0.08, 15.0)
-    min_x, max_x = min(xs) - margin_xy, max(xs) + margin_xy
-    min_y, max_y = min(ys) - margin_xy, max(ys) + margin_xy
-    min_z, max_z = min(zs) - 6.0, max(zs) + 6.0
-
-    seg_lengths = [l2(ref[i], ref[i + 1]) for i in range(len(ref) - 1)]
-    mean_step = sum(seg_lengths) / max(len(seg_lengths), 1)
-    step_len = max(mean_step * max(int(stride), 1), 2.0)
-    max_turn = math.radians(35.0)
     pos = list(ref[start])
-    if start + 1 < len(ref):
-        heading = math.atan2(ref[start + 1][1] - ref[start][1], ref[start + 1][0] - ref[start][0])
-    else:
-        heading = rng.uniform(-math.pi, math.pi)
 
     targets: list[list[float]] = []
-    for _ in range(count):
-        heading += rng.uniform(-max_turn, max_turn)
-        distance = step_len * rng.uniform(0.7, 1.3)
+    for _ in range(max(int(steps), 1)):
+        heading = rng.uniform(-math.pi, math.pi)
+        distance = rng.uniform(0.0, max(float(max_step_m), 0.0))
         x = pos[0] + math.cos(heading) * distance
         y = pos[1] + math.sin(heading) * distance
-        z = pos[2] + rng.uniform(-2.0, 2.0)
-
-        if x < min_x or x > max_x:
-            heading = math.pi - heading
-            x = max(min_x, min(max_x, x))
-        if y < min_y or y > max_y:
-            heading = -heading
-            y = max(min_y, min(max_y, y))
-        z = max(min_z, min(max_z, z))
+        z = pos[2] + rng.uniform(-max(float(max_vertical_step_m), 0.0), max(float(max_vertical_step_m), 0.0))
         pos = [x, y, z]
         targets.append(pos)
     return targets
@@ -98,9 +79,13 @@ def _run_targets(
     max_teleport_step_m: float,
     max_teleport_vertical_step_m: float,
     teleport_keep_initial_height: bool,
+    paper_protocol: bool,
+    random_stop_probability: float = 0.0,
+    rng: random.Random | None = None,
+    stop_at_end: bool = False,
     initial_executed_path: list[list[float]] | None = None,
     initial_path_length_m: float = 0.0,
-) -> tuple[list[list[float]], list[float], int, float, str, float, float]:
+) -> tuple[list[list[float]], list[float], int, float, str, float, float, bool]:
     executed = list(initial_executed_path) if initial_executed_path else [_position(env)]
     cycle_times: list[float] = []
     collisions = 0
@@ -109,18 +94,23 @@ def _run_targets(
     stationary_detector = StationaryDetector(timeout_sec=stationary_timeout_sec, radius_m=stationary_radius_m)
     stationary_detector.update(_position(env), started_at)
     termination_reason = "completed_targets"
+    stopped = False
     for target in targets:
-        if time.perf_counter() - started_at >= timeout_sec:
+        if rng is not None and rng.random() < max(min(float(random_stop_probability), 1.0), 0.0):
+            termination_reason = "policy_stop"
+            stopped = True
+            break
+        if not paper_protocol and time.perf_counter() - started_at >= timeout_sec:
             termination_reason = "timeout"
             break
         current = _position(env)
-        if l2_xy(current, goal) <= success_radius:
+        if not paper_protocol and l2(current, goal) <= success_radius:
             termination_reason = "goal_reached"
             break
-        if executed_path_length_m >= path_length_limit_m:
+        if not paper_protocol and executed_path_length_m >= path_length_limit_m:
             termination_reason = "path_length_limit"
             break
-        if stationary_detector.update(current, time.perf_counter()):
+        if not paper_protocol and stationary_detector.update(current, time.perf_counter()):
             termination_reason = "stationary_timeout"
             break
 
@@ -139,20 +129,23 @@ def _run_targets(
         executed.append(pos)
         if _collision(env):
             collisions += 1
-        if l2_xy(pos, goal) <= success_radius:
+        if not paper_protocol and l2(pos, goal) <= success_radius:
             termination_reason = "goal_reached"
             break
-        if time.perf_counter() - started_at >= timeout_sec:
+        if not paper_protocol and time.perf_counter() - started_at >= timeout_sec:
             termination_reason = "timeout"
             break
-        if executed_path_length_m >= path_length_limit_m:
+        if not paper_protocol and executed_path_length_m >= path_length_limit_m:
             termination_reason = "path_length_limit"
             break
-        if stationary_detector.update(pos, time.perf_counter()):
+        if not paper_protocol and stationary_detector.update(pos, time.perf_counter()):
             termination_reason = "stationary_timeout"
             break
     episode_elapsed_sec = time.perf_counter() - started_at
-    return executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_detector.duration_sec
+    if stop_at_end and termination_reason == "completed_targets":
+        stopped = True
+        termination_reason = "policy_stop"
+    return executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_detector.duration_sec, stopped
 
 
 def _summarize(details: list[dict[str, Any]]) -> dict[str, Any]:
@@ -299,12 +292,21 @@ def main() -> None:
             success_radius = float(cfg["success_radius"])
             stationary_timeout_sec = float(args.stationary_timeout_sec if args.stationary_timeout_sec is not None else cfg.get("stationary_timeout_sec", 10.0))
             stationary_radius_m = float(args.stationary_radius_m if args.stationary_radius_m is not None else cfg.get("stationary_radius_m", 0.5))
+            paper_protocol = str(cfg.get("termination_mode", "paper")).lower() == "paper"
             if args.baseline == "reference":
                 targets = _reference_targets(episode, stride=int(args.reference_stride), start_index=bootstrap_reference_offset + 1)
+                random_rng = None
             else:
-                rng = random.Random(int(args.seed) + trial * 1009)
-                targets = _random_targets(episode, rng, steps=args.random_steps, stride=int(args.reference_stride), start_index=max(bootstrap_reference_offset, 0))
-            executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_duration_sec = _run_targets(
+                random_rng = random.Random(int(args.seed) + trial * 1009)
+                targets = _random_targets(
+                    episode,
+                    random_rng,
+                    steps=int(args.random_steps if args.random_steps is not None else cfg.get("max_steps", 128)),
+                    max_step_m=max_teleport_step_m,
+                    max_vertical_step_m=max_teleport_vertical_step_m,
+                    start_index=max(bootstrap_reference_offset, 0),
+                )
+            executed, cycle_times, collisions, episode_elapsed_sec, termination_reason, executed_path_length_m, stationary_duration_sec, stopped = _run_targets(
                 env,
                 episode,
                 targets,
@@ -318,6 +320,10 @@ def main() -> None:
                 max_teleport_step_m=max_teleport_step_m,
                 max_teleport_vertical_step_m=max_teleport_vertical_step_m,
                 teleport_keep_initial_height=teleport_keep_initial_height,
+                paper_protocol=paper_protocol,
+                random_stop_probability=float(cfg.get("random_stop_probability", 1.0 / max(int(cfg.get("max_steps", 128)), 1))),
+                rng=random_rng,
+                stop_at_end=args.baseline == "reference",
                 initial_executed_path=bootstrap_positions,
                 initial_path_length_m=bootstrap_path_length_m,
             )
@@ -327,6 +333,7 @@ def main() -> None:
                 goal=goal,
                 success_radius=success_radius,
                 shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
+                stopped=stopped,
             )
             trajectory_file = run_dir / "trajectories" / f"{args.baseline}_{trial:03d}_{episode_id}.json"
             beacon_file = run_dir / "beacons" / f"{args.baseline}_{trial:03d}_{episode_id}.json"
@@ -359,6 +366,8 @@ def main() -> None:
                     "stationary_radius_m": stationary_radius_m,
                     "stationary_duration_sec": stationary_duration_sec,
                     "termination_reason": termination_reason,
+                    "stopped": stopped,
+                    "termination_mode": "paper" if paper_protocol else "legacy",
                 },
                 trajectory_file,
             )
@@ -390,6 +399,8 @@ def main() -> None:
                 "stationary_radius_m": stationary_radius_m,
                 "stationary_duration_sec": stationary_duration_sec,
                 "termination_reason": termination_reason,
+                "stopped": stopped,
+                "termination_mode": "paper" if paper_protocol else "legacy",
                 "beacons_placed": sum(1 for item in placements if item.get("placed")),
                 "beacons_requested": len(placements),
                 "trajectory_file": str(trajectory_file),
