@@ -13,6 +13,7 @@ from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.baselines.random_policy import RandomPolicy
 from voln_uav.evaluation.metrics import METRIC_KEYS, aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
+from voln_uav.evaluation.paper_protocol import select_available_episodes
 from voln_uav.evaluation.termination import StationaryDetector
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.airsim_env import AirSimRouteEnv
@@ -45,7 +46,7 @@ def _port_is_open(ip: str, port: int, timeout_sec: float = 1.0) -> bool:
 
 def filter_airsim_episodes(config: dict[str, Any], episodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Apply the exact episode selection used by AirSim evaluation and preflight."""
-    scene_allowlist = set(config.get("scene_allowlist", []) or [])
+    episodes, _coverage = select_available_episodes(episodes, config)
     difficulty_allowlist = set(config.get("difficulty_allowlist", []) or [])
     episode_index = max(int(config.get("episode_index", 0)), 0)
     episode_stride = max(int(config.get("episode_stride", 1)), 1)
@@ -53,8 +54,7 @@ def filter_airsim_episodes(config: dict[str, Any], episodes: list[dict[str, Any]
     filtered = [
         episode
         for episode in episodes
-        if (not scene_allowlist or episode["scene_id"] in scene_allowlist)
-        and (not difficulty_allowlist or episode.get("difficulty") in difficulty_allowlist)
+        if not difficulty_allowlist or episode.get("difficulty") in difficulty_allowlist
     ]
     selected = filtered[episode_index::episode_stride]
     if trials is not None:
@@ -157,14 +157,17 @@ class AirSimClosedLoopEvaluator:
         self.device = device
         self.benchmark_root = Path(config["benchmark_root"])
         self.work_dir = ensure_dir(config["work_dir"])
-        episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
-        self.episodes = filter_airsim_episodes(config, episodes)
-        raise_for_airsim_readiness(config, self.episodes)
+        raw_episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
+        _available, self.scene_coverage = select_available_episodes(raw_episodes, config)
+        self.episodes = filter_airsim_episodes(config, raw_episodes)
+        self.scene_coverage["selected_episodes_after_filters"] = len(self.episodes)
+        if self.episodes:
+            raise_for_airsim_readiness(config, self.episodes)
         self.controller = str(config.get("controller", "policy")).lower()
         if self.controller not in {"policy", "reference", "random"}:
             raise ValueError(f"Unsupported AirSim controller: {self.controller}")
         self.policy = None
-        if self.controller == "policy":
+        if self.controller == "policy" and self.episodes:
             self.policy = VoLNPolicy(
                 config=config,
                 semantic_bank_path=self.benchmark_root / config["semantic_bank"],
@@ -209,6 +212,7 @@ class AirSimClosedLoopEvaluator:
         p95_idx = min(int(0.95 * max(len(sorted_ct) - 1, 0)), max(len(sorted_ct) - 1, 0))
         return {
             **agg,
+            "status": "complete",
             "episodes": len(details),
             "total_episodes": len(self.episodes),
             "CT_mean": sum(cycle_times) / max(len(cycle_times), 1),
@@ -216,6 +220,7 @@ class AirSimClosedLoopEvaluator:
             "EER": execution_errors / max(len(cycle_times), 1),
             "collisions": collisions,
             "by_difficulty": aggregate_by_difficulty(details),
+            "scene_coverage": self.scene_coverage,
             "details_file": str(self.work_dir / "details.jsonl"),
             "progress_file": str(self.work_dir / "progress.json"),
         }
@@ -227,6 +232,16 @@ class AirSimClosedLoopEvaluator:
             f.write(json.dumps(detail, ensure_ascii=False) + "\n")
 
     def evaluate(self) -> dict[str, Any]:
+        write_json(self.scene_coverage, self.work_dir / "scene_coverage.json")
+        if not self.episodes:
+            summary = {
+                "status": "skipped_no_available_episodes",
+                "episodes": 0,
+                "total_episodes": 0,
+                "scene_coverage": self.scene_coverage,
+            }
+            write_json(summary, self.work_dir / "metrics.json")
+            return summary
         port = int(self.cfg.get("port", 41451))
         launcher = AirSimProcess(self.cfg)
         details = self._load_completed_details()

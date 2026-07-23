@@ -1,4 +1,6 @@
 seed: 7
+paper_protocol: paper_protocol.yaml
+strict_scenes: false
 benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt

@@ -1,0 +1,46 @@
+version: 1
+name: VoLN-UAV paper protocol
+
+dataset:
+  expected_episodes: 7210
+  expected_environments: 17
+  difficulty_mix:
+    Easy: 0.52
+    Normal: 0.36
+    Hard: 0.12
+
+splits:
+  train:
+    file: train.jsonl
+    aliases: []
+    expected_episodes: 5047
+    expected_environments: 12
+  validation_seen:
+    file: val.jsonl
+    aliases:
+      - validation_seen.jsonl
+    expected_episodes: 1082
+    expected_environments: 5
+  test_unseen:
+    file: test.jsonl
+    aliases:
+      - test_unseen.jsonl
+    expected_episodes: 1081
+    expected_environments: 5
+
+# These environments are referenced by the complete internal benchmark but may
+# be absent from a public/partial release. Evaluation reports them as skipped;
+# they are never converted into zero-valued episodes.
+optional_scene_ids:
+  - Campus
+  - Park
+  - Tunnel
+  - Ruins
+
+evaluation:
+  max_decisions: 128
+  success_radius_m: 4.0
+  distance_space: xyz
+  explicit_stop_for_sr: true
+  explicit_stop_for_spl: true
+  oracle_success_on_entry: true

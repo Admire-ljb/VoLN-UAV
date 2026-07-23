@@ -28,6 +28,10 @@ real = [
   "airsim>=1.8.1",
 ]
 
+plots = [
+  "matplotlib>=3.8",
+]
+
 dev = [
   "pytest>=8.0.0",
 ]
@@ -39,6 +43,8 @@ voln-uav-train-adapter = "voln_uav.cli.train_adapter:main"
 voln-uav-train-planner = "voln_uav.cli.train_planner:main"
 voln-uav-eval-offline = "voln_uav.cli.eval_offline:main"
 voln-uav-eval-airsim = "voln_uav.cli.eval_airsim:main"
+voln-uav-validate-paper-protocol = "voln_uav.cli.validate_paper_protocol:main"
+voln-uav-compile-paper-results = "voln_uav.cli.compile_paper_results:main"
 voln-uav-stream-airsim = "voln_uav.cli.stream_airsim:main"
 voln-uav-online-baseline = "voln_uav.cli.eval_online_baselines:main"
 voln-uav-report-metrics = "voln_uav.cli.report_metrics:main"
