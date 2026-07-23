@@ -33,6 +33,16 @@ def main() -> None:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--output-root", default="D:/VoLN_dataset/VoLN-UAV-runs")
+    parser.add_argument(
+        "--scenes",
+        nargs="+",
+        help="Optional scene IDs. Absent partial-release scenes are skipped and recorded, not scored as failures.",
+    )
+    parser.add_argument(
+        "--strict-scenes",
+        action="store_true",
+        help="Fail if any requested scene is absent.",
+    )
     parser.add_argument("--preflight", action="store_true", help="AirSim only: check scene readiness without loading a model.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -69,6 +79,10 @@ def main() -> None:
             ]
             if args.preflight:
                 command.append("--preflight")
+            if args.scenes:
+                command.extend(["--scenes", *args.scenes])
+            if args.strict_scenes:
+                command.append("--strict-scenes")
             if method == "random":
                 command.extend(["--controller", "random"])
             _run(command, env, args.dry_run)

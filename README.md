@@ -36,13 +36,15 @@ The [navigation dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) 
 
 ### Dataset splits
 
-The manuscript uses **7,210 episodes** with scene-level disjoint splits:
+The manuscript uses **7,210 episodes**. Validation-Seen contains disjoint
+trajectories from five environments represented in the training pool, while
+Test-Unseen contains five held-out environments:
 
 | Split | Episodes | Ratio | Evaluation name |
 |---|---:|---:|---|
 | Train | 5,047 | 70% | Train |
-| Validation | 1,082 | 15% | Validation-Seen |
-| Test | 1,081 | 15% | Test-Unseen |
+| Validation-Seen | 1,082 | 15% | Validation-Seen |
+| Test-Unseen | 1,081 | 15% | Test-Unseen |
 
 Difficulty is defined by reference path length:
 
@@ -73,6 +75,8 @@ The paper protocol uses at most 128 decisions per episode and a 4 m three-dimens
 | AirSim evaluation | `configs/eval_airsim_dataset_release.yaml` |
 | Paper ablations | `scripts/run_paper_ablations.py` |
 | Paper evaluation suite | `scripts/run_paper_evaluation.py` |
+| Paper protocol audit | `scripts/validate_paper_protocol.py` |
+| Paper tables and figures | `scripts/compile_paper_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [Baseline documentation](docs/voln_adapted_baselines.md) |
 
 ## Installation
@@ -81,7 +85,7 @@ The paper protocol uses at most 128 decisions per episode and a 4 m three-dimens
 conda create -n voln-uav python=3.10 -y
 conda activate voln-uav
 pip install -r requirement.txt
-pip install -e .[real]
+pip install -e ".[real,plots]"
 ~~~
 
 Install the CUDA-specific PyTorch build first if the default wheel does not match your system.
@@ -89,6 +93,22 @@ Install the CUDA-specific PyTorch build first if the default wheel does not matc
 ## Dataset Preparation
 
 Download the [navigation dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) and extract the metadata and required split shards into one directory. Download the [simulator environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) separately for online AirSim evaluation.
+
+Audit the existing split manifests without changing the dataset:
+
+~~~bash
+python scripts/validate_paper_protocol.py \
+  --benchmark-root D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark \
+  --protocol configs/paper_protocol.yaml \
+  --out results/local_protocol_coverage.json
+~~~
+
+The complete internal benchmark has 7,210 episodes in 17 environments. A
+public or locally selected subset may be smaller. The audit marks such a
+release as `partial`, verifies the available split invariants, and reports
+absent optional environments such as Campus, Park, Tunnel, and Ruins. Missing
+environments are skipped; they are not converted into zero-valued episodes.
+Add `--strict` when a complete paper-scale release is required.
 
 Set <code>source_root</code> and <code>output_root</code> in <code>configs/benchmark_dataset_release.yaml</code>, then build the benchmark:
 
@@ -135,6 +155,21 @@ python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --device cuda
 ~~~
 
+Run all manuscript methods on Validation-Seen and Test-Unseen:
+
+~~~bash
+python scripts/run_paper_evaluation.py \
+  --backend airsim \
+  --methods random seq2seq_vg cma lag voln_mllm \
+  --splits validation_seen test_unseen \
+  --device cuda
+~~~
+
+To evaluate selected environments from a partial release, append
+`--scenes Campus Park Tunnel Ruins`. Each run writes `scene_coverage.json`.
+Unavailable requested scenes produce a `skipped_no_available_episodes` result,
+not a fabricated failure. Add `--strict-scenes` to reject a missing scene.
+
 On Windows, the reference and random online baselines can be evaluated with the same launcher:
 
 ~~~powershell
@@ -145,6 +180,39 @@ $env:TRIALS="10"
 ~~~
 
 Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
+
+## Paper Results and Consistency Checks
+
+`configs/paper_results.yaml` is the machine-readable source for the numbers
+already reported in the manuscript. It is explicitly labelled
+`manuscript_reported`; these values are never used as substitutes for absent
+evaluation logs.
+
+Export the paper tables and plots:
+
+~~~bash
+python scripts/compile_paper_results.py \
+  --results configs/paper_results.yaml \
+  --output-dir results/paper
+~~~
+
+Compare available closed-loop runs against the reported table:
+
+~~~bash
+python scripts/compile_paper_results.py \
+  --results configs/paper_results.yaml \
+  --output-dir results/paper \
+  --runs-root D:/VoLN_dataset/VoLN-UAV-runs \
+  --backend airsim
+~~~
+
+Missing run directories are listed as `skipped_missing` in
+`run_coverage.json`. Use `--strict-runs` for release verification that must
+include every method and split.
+
+| Test-Unseen SR | Test-Unseen nDTW |
+|---|---|
+| ![Test-Unseen SR](results/paper/figures/test_unseen_sr.png) | ![Test-Unseen nDTW](results/paper/figures/test_unseen_ndtw.png) |
 
 ## Repository Structure
 

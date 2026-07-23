@@ -44,6 +44,8 @@ def test_release_evaluation_configs_share_paper_protocol():
         assert config["max_steps"] == 128, name
         assert config["success_radius"] == 4.0, name
         assert config["stop_probability"] is None, name
+        assert config["paper_protocol"] == "paper_protocol.yaml", name
+        assert config["strict_scenes"] is False, name
         assert config["planner_ckpt"].endswith("planner_best.pt"), name
         assert config["model"]["dino_backbone"] == DINO_V3, name
         assert config["model"]["clip_image_encoder"] == CLIP_B16, name

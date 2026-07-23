@@ -28,6 +28,16 @@ def main() -> None:
         help="Paper evaluation split. validation_seen maps to val.jsonl; test_unseen maps to test.jsonl.",
     )
     split_group.add_argument("--episodes-file", help="Custom episode JSONL path relative to benchmark_root.")
+    parser.add_argument(
+        "--scenes",
+        nargs="+",
+        help="Optional scene IDs. Missing partial-release scenes are skipped and recorded in scene_coverage.json.",
+    )
+    parser.add_argument(
+        "--strict-scenes",
+        action="store_true",
+        help="Fail instead of skipping when any requested scene is absent.",
+    )
     parser.add_argument("--work-dir", help="Override the output directory for metrics and trajectories.")
     args = parser.parse_args()
     cfg = load_config(args.config)
@@ -35,6 +45,10 @@ def main() -> None:
         cfg["episodes_file"] = PAPER_SPLITS[args.split]
     elif args.episodes_file is not None:
         cfg["episodes_file"] = args.episodes_file
+    if args.scenes is not None:
+        cfg["scene_allowlist"] = args.scenes
+    if args.strict_scenes:
+        cfg["strict_scenes"] = True
     if args.work_dir is not None:
         cfg["work_dir"] = args.work_dir
     set_seed(int(cfg["seed"]))

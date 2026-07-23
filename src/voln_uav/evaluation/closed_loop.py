@@ -10,6 +10,7 @@ import torch
 from voln_uav.common.geometry import l2
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json
 from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, summarize_episode
+from voln_uav.evaluation.paper_protocol import select_available_episodes
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.offline_env import RouteReplayEnv
 
@@ -19,17 +20,21 @@ class ClosedLoopEvaluator:
         self.cfg = config
         self.device = device
         self.benchmark_root = Path(config["benchmark_root"])
-        self.episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
+        raw_episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
+        self.episodes, self.scene_coverage = select_available_episodes(raw_episodes, config)
         episode_limit = config.get("episode_limit")
         if episode_limit is not None:
             self.episodes = self.episodes[: int(episode_limit)]
-        self.policy = VoLNPolicy(
-            config=config,
-            semantic_bank_path=self.benchmark_root / config["semantic_bank"],
-            adapter_ckpt=config["adapter_ckpt"],
-            planner_ckpt=config["planner_ckpt"],
-            device=device,
-        )
+        self.scene_coverage["selected_episodes_after_limit"] = len(self.episodes)
+        self.policy = None
+        if self.episodes:
+            self.policy = VoLNPolicy(
+                config=config,
+                semantic_bank_path=self.benchmark_root / config["semantic_bank"],
+                adapter_ckpt=config["adapter_ckpt"],
+                planner_ckpt=config["planner_ckpt"],
+                device=device,
+            )
 
     @staticmethod
     def _execute_waypoint_segment(env: RouteReplayEnv, waypoints: torch.Tensor | None) -> tuple[dict[str, Any], bool]:
@@ -59,6 +64,16 @@ class ClosedLoopEvaluator:
 
     def evaluate(self) -> dict[str, Any]:
         work_dir = ensure_dir(self.cfg["work_dir"])
+        write_json(self.scene_coverage, work_dir / "scene_coverage.json")
+        if not self.episodes:
+            summary = {
+                "status": "skipped_no_available_episodes",
+                "episodes": 0,
+                "scene_coverage": self.scene_coverage,
+            }
+            write_json(summary, work_dir / "metrics.json")
+            return summary
+        assert self.policy is not None
         details_path = work_dir / "details.jsonl"
         progress_path = work_dir / "progress.json"
         details_path.write_text("", encoding="utf-8")
@@ -174,11 +189,13 @@ class ClosedLoopEvaluator:
         eer = execution_errors / max(len(cycle_times), 1)
         summary = {
             **agg,
+            "status": "complete",
             "CT_mean": ct_mean,
             "CT_p95": ct_p95,
             "EER": eer,
             "episodes": len(self.episodes),
             "by_difficulty": aggregate_by_difficulty(details),
+            "scene_coverage": self.scene_coverage,
             "details": details,
         }
         write_json(summary, work_dir / "metrics.json")

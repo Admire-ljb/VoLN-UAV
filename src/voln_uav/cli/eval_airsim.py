@@ -35,6 +35,16 @@ def main() -> None:
         help="Paper evaluation split. validation_seen maps to val.jsonl; test_unseen maps to test.jsonl.",
     )
     split_group.add_argument("--episodes-file", help="Custom episode JSONL path relative to benchmark_root.")
+    parser.add_argument(
+        "--scenes",
+        nargs="+",
+        help="Optional scene IDs. Missing partial-release scenes are skipped and recorded in scene_coverage.json.",
+    )
+    parser.add_argument(
+        "--strict-scenes",
+        action="store_true",
+        help="Fail instead of skipping when any requested scene is absent.",
+    )
     parser.add_argument("--preflight", action="store_true", help="Check AirSim dependencies and scene access without loading the model.")
     parser.add_argument("--trials", type=int, help="Number of episodes to run after episode-index/stride filtering.")
     parser.add_argument("--episode-index", type=int, help="First episode index after split/scene/difficulty filtering.")
@@ -61,6 +71,10 @@ def main() -> None:
         cfg["episodes_file"] = PAPER_SPLITS[args.split]
     elif args.episodes_file is not None:
         cfg["episodes_file"] = args.episodes_file
+    if args.scenes is not None:
+        cfg["scene_allowlist"] = args.scenes
+    if args.strict_scenes:
+        cfg["strict_scenes"] = True
     if args.controller is not None:
         cfg["controller"] = args.controller
     if args.trials is not None:
@@ -97,13 +111,22 @@ def main() -> None:
 
     if args.preflight:
         from voln_uav.evaluation.airsim_loop import filter_airsim_episodes
+        from voln_uav.evaluation.paper_protocol import select_available_episodes
 
-        episodes = filter_airsim_episodes(
-            cfg,
-            read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"]),
+        raw_episodes = read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"])
+        _available, coverage = select_available_episodes(raw_episodes, cfg)
+        episodes = filter_airsim_episodes(cfg, raw_episodes)
+        coverage["selected_episodes_after_filters"] = len(episodes)
+        issues = check_airsim_readiness(cfg, episodes) if episodes else []
+        status = "ready" if not issues and episodes else "skipped_no_available_episodes"
+        if issues:
+            status = "not_ready"
+        print(
+            json.dumps(
+                {"ok": not issues, "status": status, "issues": issues, "scene_coverage": coverage},
+                indent=2,
+            )
         )
-        issues = check_airsim_readiness(cfg, episodes)
-        print(json.dumps({"ok": not issues, "issues": issues}, indent=2))
         raise SystemExit(1 if issues else 0)
 
     set_seed(int(cfg["seed"]))
