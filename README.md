@@ -2,7 +2,7 @@
 
 # VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method
 
-### VoLN-UAV benchmark and VoLN-MLLM
+### Official Training and Evaluation Repository
 
 <p>
   Jiabin Lou &nbsp;·&nbsp; Haopeng Wang &nbsp;·&nbsp; Yuanshuai Wang &nbsp;·&nbsp; Xinyu Liu &nbsp;·&nbsp; Xuxin Lv &nbsp;·&nbsp; Yuxin Guo &nbsp;·&nbsp; Lei Huang &nbsp;·&nbsp; Rongye Shi &nbsp;·&nbsp; Wenjun Wu<sup>*</sup><br>
@@ -18,38 +18,25 @@
 
 </div>
 
-<p align="center">
-  <img src="docs/assets/paper/fig1_teaser.png" alt="Comparison between conventional VLN and VoLN" width="100%">
-</p>
+## Reproduction Scope
 
-## Overview
+This README is the reproducibility guide for the released VoLN training and evaluation code. For the method overview, headline results, dataset visualizations, qualitative cases, and simulation/real-world videos, visit the [project page](https://admire-ljb.github.io/VoLN-UAV/).
 
-VoLN studies long-horizon UAV navigation when route intent is specified without episode-level language instructions. At each decision step, the agent receives an egocentric RGB observation, its observation history, proprioception, and terminal goal views. Route guidance must be recovered from visual beacons embedded in the environment. Text instructions, GPS, global maps, symbolic goal coordinates, and shortest-path supervision are unavailable during execution.
+The repository covers:
 
-This repository contains:
+- VoLN-MLLM adapter and planner training;
+- VoLN-adapted Seq2Seq-VG, CMA-VG, and LAG-VG baselines;
+- paper-protocol offline and AirSim closed-loop evaluation;
+- the No-Align, No-LoRA, and CLIP-Input ablations;
+- metric reporting for NE, SR, OSR, nDTW, SPL, CT, and EER.
 
-- the **VoLN-UAV** benchmark construction and scene-disjoint evaluation pipeline;
-- the **VoLN-MLLM** visual-semantic alignment and trajectory-planning method;
-- VoLN-adapted **Seq2Seq-VG**, **CMA-VG**, and **LAG-VG** baselines;
-- offline and AirSim closed-loop evaluation with NE, SR, OSR, nDTW, SPL, CT, and EER;
-- dataset packaging, beacon augmentation, route replay, and simulator utilities.
+The [navigation dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) and [simulator environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) are released separately and are not duplicated in this repository.
 
-## News and Resources
+## Experimental Protocol
 
-- **Dataset:** [Louj/VoLN-UAV-dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset)
-- **Simulator environments:** [Louj/VoLN-UAV-ENV](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV)
-- **Interactive demonstrations:** [Project page](https://admire-ljb.github.io/VoLN-UAV/#demonstrations)
-- **Current manuscript:** [PDF](paperv1.pdf)
+### Dataset splits
 
-The navigation dataset and simulator packages are released separately. The dataset repository provides sharded source trajectories, RGB observations, metadata, and split files; the environment repository provides the Unreal Engine/AirSim packages.
-
-## VoLN-UAV Benchmark
-
-<p align="center">
-  <img src="docs/assets/paper/fig3_environments.png" alt="Environment categories in VoLN-UAV" width="100%">
-</p>
-
-The current manuscript defines **7,210 benchmark episodes** with scene-level disjoint splits:
+The manuscript uses **7,210 episodes** with scene-level disjoint splits:
 
 | Split | Episodes | Ratio | Evaluation name |
 |---|---:|---:|---|
@@ -57,75 +44,36 @@ The current manuscript defines **7,210 benchmark episodes** with scene-level dis
 | Validation | 1,082 | 15% | Validation-Seen |
 | Test | 1,081 | 15% | Test-Unseen |
 
-Difficulty is determined by reference path length:
+Difficulty is defined by reference path length:
 
 - **Easy:** less than 300 m
 - **Normal:** 300–450 m
 - **Hard:** at least 450 m
 
-<p align="center">
-  <img src="docs/assets/paper/fig4_dataset_pipeline.png" alt="VoLN-UAV trajectory collection, beacon augmentation, annotation, and split pipeline" width="100%">
-</p>
-
-The benchmark combines preset trajectories and operator-collected routes, injects task-relevant active beacons, retains passive semantic distractors, and records synchronized RGB, IMU, odometry, state, goal-view, and future-waypoint supervision. Splitting is performed at the Unreal-scene level to prevent scene leakage.
-
-## VoLN-MLLM
-
-<p align="center">
-  <img src="docs/assets/paper/fig5_method_framework.png" alt="VoLN-MLLM method framework" width="100%">
-</p>
+### Model stages
 
 VoLN-MLLM has two stages:
 
 1. **Visual-semantic alignment.** A lightweight adapter maps frozen DINOv3 ViT-B/16 features into the frozen CLIP ViT-B/16 image-embedding space using cosine distillation.
 2. **Trajectory planning.** A frozen Vicuna-7B-v1.5 backbone jointly encodes aligned observation history, goal views, proprioception, and top-8 category tokens retrieved from the fixed semantic bank. Rank-16 LoRA modules adapt its attention and feed-forward projections; learned heads predict eight 3D waypoints and a stop signal.
 
-## Main Results
-
-Test-Unseen results from the current manuscript are shown below. Each entry is ordered as **Easy / Normal / Hard**; arrows indicate whether lower or higher is better.
-
-| Method | NE (m) ↓ | SR (%) ↑ | OSR (%) ↑ | nDTW (%) ↑ | SPL (%) ↑ |
-|---|---:|---:|---:|---:|---:|
-| Random | 270.1 / 310.4 / 395.2 | 0.4 / 0.0 / 0.0 | 1.4 / 0.6 / 0.2 | 30.1 / 22.7 / 15.1 | 0.3 / 0.0 / 0.0 |
-| Seq2Seq-VG | 208.6 / 254.8 / 309.9 | 1.0 / 0.4 / 0.1 | 4.8 / 2.5 / 0.9 | 28.9 / 21.4 / 13.0 | 0.7 / 0.3 / 0.0 |
-| CMA-VG | 174.5 / 216.8 / 266.1 | 1.6 / 0.8 / 0.2 | 6.5 / 3.9 / 1.7 | 33.2 / 26.4 / 18.5 | 1.1 / 0.6 / 0.1 |
-| LAG-VG | 122.4 / 158.3 / 206.7 | 2.3 / 1.2 / 0.4 | 6.4 / 3.8 / 1.7 | 28.1 / 20.5 / 14.0 | 1.5 / 0.7 / 0.2 |
-| **VoLN-MLLM** | **97.1 / 131.4 / 176.8** | **7.4 / 4.5 / 1.8** | **14.6 / 10.1 / 4.5** | **53.1 / 41.2 / 28.0** | **5.7 / 3.2 / 1.3** |
+### Evaluation rules
 
 The trained baselines are visual-goal adaptations of instruction-following navigation models. All methods receive the same VoLN observations and share waypoint supervision, action interface, stopping rule, and evaluation protocol.
 
 The paper protocol uses at most 128 decisions per episode and a 4 m three-dimensional goal region. SR and SPL require the policy to issue an explicit stop inside that region; OSR records whether the executed trajectory enters it at any time. The stop threshold is calibrated on Validation-Seen and stored in `planner_best.pt`.
 
-## Qualitative Results
+### Configuration index
 
-<p align="center">
-  <img src="docs/assets/paper/fig6_beacon_case.png" alt="Success and failure cases for active and passive beacon discrimination" width="100%">
-</p>
-
-The aligned rollouts show the key VoLN failure mode: an agent must select the active route beacon while ignoring visually similar passive distractors. Selecting the wrong cue produces an incorrect local update, accumulated drift, and a missed goal.
-
-<p align="center">
-  <img src="docs/assets/paper/fig7_real_testbed.png" alt="Physical indoor testbed for preliminary real-world deployment" width="100%">
-</p>
-
-The physical indoor testbed is a preliminary qualitative feasibility study under the same visual-goal interface; it is not presented as a large-scale quantitative real-world benchmark.
-
-## Visual Demonstrations
-
-<table>
-<tr>
-<td align="center" width="50%">
-<strong>Simulation</strong><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo"><img src="assets/readme/demos/simulation_demo.gif" alt="Simulation demonstration" width="100%"></a><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#simulation-demo">Open web player</a>
-</td>
-<td align="center" width="50%">
-<strong>Physical flight</strong><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo"><img src="assets/readme/demos/physical_flight_demo.gif" alt="Physical-flight demonstration" width="100%"></a><br>
-<a href="https://admire-ljb.github.io/VoLN-UAV/#physical-flight-demo">Open web player</a>
-</td>
-</tr>
-</table>
+| Experiment | Configuration or launcher |
+|---|---|
+| Adapter training | `configs/train_adapter_dataset_release.yaml` |
+| Planner training | `configs/train_planner_dataset_release.yaml` |
+| Offline evaluation | `configs/eval_offline_dataset_release.yaml` |
+| AirSim evaluation | `configs/eval_airsim_dataset_release.yaml` |
+| Paper ablations | `scripts/run_paper_ablations.py` |
+| Paper evaluation suite | `scripts/run_paper_evaluation.py` |
+| Seq2Seq-VG / CMA-VG / LAG-VG | [Baseline documentation](docs/voln_adapted_baselines.md) |
 
 ## Installation
 
