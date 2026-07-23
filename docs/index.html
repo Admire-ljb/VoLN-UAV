@@ -60,31 +60,48 @@
     }
 
     .publication-title {
-      max-width: 920px;
-      margin: 0 auto 14px;
+      max-width: 1100px;
+      margin: 0 auto 20px;
       color: #242424;
-      font-size: clamp(34px, 4.3vw, 48px);
+      font-size: clamp(34px, 3.8vw, 44px);
       font-weight: 700;
       line-height: 1.12;
       letter-spacing: -0.02em;
     }
 
-    .publication-subtitle {
-      margin: 0 0 20px;
-      color: #4d4d4d;
-      font-size: clamp(19px, 2.2vw, 25px);
-      font-weight: 500;
-      line-height: 1.3;
+    .paper-name {
+      display: block;
+      font-size: 1.14em;
+      letter-spacing: 0.025em;
+    }
+
+    .paper-long-title {
+      display: block;
+      margin-top: 7px;
+      font-size: 0.78em;
+      font-weight: 600;
+      line-height: 1.28;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
     }
 
     .publication-authors {
       display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 5px 18px;
-      margin: 0 0 8px;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      max-width: 980px;
+      margin: 0 auto 11px;
       color: var(--link);
       font-size: 19px;
+      line-height: 1.45;
+    }
+
+    .author-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px clamp(20px, 2.4vw, 34px);
     }
 
     .publication-authors span {
@@ -383,8 +400,12 @@
     @media (max-width: 720px) {
       .publication-header { padding-top: 38px; }
       .publication-title { font-size: 32px; }
-      .publication-subtitle { font-size: 19px; }
+      .paper-long-title {
+        font-size: 0.82em;
+        white-space: normal;
+      }
       .publication-authors { font-size: 17px; }
+      .author-row { gap: 5px 16px; }
       .section { padding: 38px 0; }
       .section-title { font-size: 26px; }
       .videos { grid-template-columns: 1fr; }
@@ -402,20 +423,26 @@
   <header class="publication-header">
     <div class="container-wide">
       <p class="venue">Preprint · 2026</p>
-      <h1 class="publication-title">VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method</h1>
-      <p class="publication-subtitle">The VoLN-UAV Benchmark and VoLN-MLLM</p>
+      <h1 class="publication-title">
+        <span class="paper-name">VoLN</span>
+        <span class="paper-long-title">Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method</span>
+      </h1>
 
-      <p class="publication-authors">
-        <span>Jiabin Lou</span>
-        <span>Haopeng Wang</span>
-        <span>Yuanshuai Wang</span>
-        <span>Xinyu Liu</span>
-        <span>Xuxin Lv</span>
-        <span>Yuxin Guo</span>
-        <span>Lei Huang</span>
-        <span>Rongye Shi</span>
-        <span>Wenjun Wu<sup>*</sup></span>
-      </p>
+      <div class="publication-authors" aria-label="Authors">
+        <div class="author-row">
+          <span>Jiabin Lou</span>
+          <span>Haopeng Wang</span>
+          <span>Yuanshuai Wang</span>
+          <span>Xinyu Liu</span>
+          <span>Xuxin Lv</span>
+        </div>
+        <div class="author-row">
+          <span>Yuxin Guo</span>
+          <span>Lei Huang</span>
+          <span>Rongye Shi</span>
+          <span>Wenjun Wu<sup>*</sup></span>
+        </div>
+      </div>
       <p class="publication-affiliation">Beihang University, Beijing, China</p>
       <p class="publication-note"><sup>*</sup> Corresponding author</p>
 
