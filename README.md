@@ -1,3 +1,8 @@
+<p align="right">
+  <a href="./README.md"><kbd>English ✓</kbd></a>
+  <a href="./README_CN.md"><kbd>简体中文</kbd></a>
+</p>
+
 <div align="center">
 
 # VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method
@@ -13,6 +18,19 @@
 </p>
 
 </div>
+
+## Visual Demonstrations
+
+<table>
+  <tr>
+    <th width="50%">Simulation</th>
+    <th width="50%">Physical Flight</th>
+  </tr>
+  <tr>
+    <td><img src="assets/readme/demos/simulation_demo.gif" alt="VoLN simulation demonstration" width="100%"></td>
+    <td><img src="assets/readme/demos/physical_flight_demo.gif" alt="VoLN physical-flight demonstration" width="100%"></td>
+  </tr>
+</table>
 
 ## Reproduction Scope
 
