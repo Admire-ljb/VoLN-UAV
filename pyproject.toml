@@ -14,10 +14,6 @@ dependencies = [
   "pyyaml>=6.0",
   "tqdm>=4.66",
   "torch>=2.0",
-]
-
-[project.optional-dependencies]
-real = [
   "timm>=0.9.12",
   "open-clip-torch>=2.24.0",
   "transformers>=4.56.0",
@@ -26,12 +22,10 @@ real = [
   "sentencepiece>=0.2.0",
   "openai>=1.30.0",
   "airsim>=1.8.1",
-]
-
-plots = [
   "matplotlib>=3.8",
 ]
 
+[project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
 ]

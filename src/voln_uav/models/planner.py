@@ -196,7 +196,7 @@ class VoLNPlanner(nn.Module):
             from peft import LoraConfig, get_peft_model
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError as exc:  # pragma: no cover - exercised in real-model runs
-            raise ImportError("Install the real-model dependencies with: pip install -e .[real]") from exc
+            raise ImportError("Install the project dependencies with: pip install -e .") from exc
 
         tokenizer = AutoTokenizer.from_pretrained(planner_backbone, use_fast=False)
         model = AutoModelForCausalLM.from_pretrained(

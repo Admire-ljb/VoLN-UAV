@@ -65,7 +65,7 @@ def filter_airsim_episodes(config: dict[str, Any], episodes: list[dict[str, Any]
 def check_airsim_readiness(config: dict[str, Any], episodes: list[dict[str, Any]] | None = None) -> list[str]:
     issues: list[str] = []
     if importlib.util.find_spec("airsim") is None:
-        issues.append("Install the AirSim Python package, for example: pip install -e .[real]")
+        issues.append("Install the project dependencies, for example: pip install -e .")
 
     env_cfg = config.get("env", {})
     auto_launch = bool(env_cfg.get("auto_launch", False))
