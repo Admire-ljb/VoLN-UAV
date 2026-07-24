@@ -113,6 +113,54 @@ Install the CUDA-specific PyTorch build first if the default wheel does not matc
 - ⏳ **Full release:** expand the public benchmark to all 7,210 episodes across
   17 environments.
 
+## Ground-Truth Trajectory Replay
+
+On Windows, the following commands run **Ground-Truth Trajectory Replay** (a reference oracle) using the recorded ground-truth waypoint sequence. This diagnostic validates AirSim coordinate alignment, beacon/target placement, episode transitions, and metric logging. It is not a learned navigation baseline and should not be included as a competing method in benchmark tables. Select the execution mode with `EVAL_MODE`.
+
+<details open>
+<summary><strong>Ground-truth trajectory replay — normal speed</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="normal"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_normal
+~~~
+
+This mode uses AirSim `move_to_position` commands and preserves normal vehicle motion.
+
+</details>
+
+<details>
+<summary><strong>Ground-truth trajectory replay — fast diagnostic</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="fast"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+~~~
+
+This mode uses `setVehiclePose` teleportation, pose-only reset, zero settling time, and a 10 m maximum teleport step.
+
+</details>
+
+Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
+
 ## Training
 
 Run the complete real-data pipeline:
@@ -177,17 +225,6 @@ python -m voln_uav.cli.eval_airsim \
 
 Each run writes `scene_coverage.json`. Add `--strict-scenes` to reject a missing
 requested scene.
-
-On Windows, the reference and random online baselines can be evaluated with the same launcher:
-
-~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
-$env:BASELINE="reference"
-$env:TRIALS="10"
-.\scripts\run_online_baseline.cmd --episode-index 0 --episode-stride 1 --reference-stride 1 --control-mode teleport --fast-reset --settle-sec 0.0 --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
-~~~
-
-Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
 
 ## Experimental Results and Consistency Checks
 

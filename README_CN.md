@@ -108,6 +108,54 @@ pip install -e .
 - ✅ **仿真环境发布：** AirSim 环境与导航数据集分别提供下载。
 - ⏳ **完整版本：** 计划扩展至全部 17 个环境、7,210 个 episodes。
 
+## 真值轨迹回放
+
+在 Windows 上，下面两个命令运行 **Ground-Truth Trajectory Replay（真值轨迹回放）**。它直接使用数据集中记录的真值 waypoint，属于 reference oracle，仅用于验证 AirSim 坐标对齐、beacon/target 放置、episode 切换和指标记录。它不是学习式导航基线，不应作为参评方法写入基准对比表。通过 `EVAL_MODE` 选择执行模式。
+
+<details open>
+<summary><strong>真值轨迹回放——正常速度</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="normal"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_normal
+~~~
+
+该模式使用 AirSim `move_to_position` 指令，保留正常的无人机运动过程。
+
+</details>
+
+<details>
+<summary><strong>真值轨迹回放——快速诊断</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="fast"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+~~~
+
+该模式使用 `setVehiclePose` 瞬移、仅位姿复位、零等待时间，并将单次最大瞬移距离设为 10 m。
+
+</details>
+
+使用 <code>scripts\report_metrics.cmd</code> 汇总运行目录中的论文指标。
+
 ## 训练
 
 运行完整的真实数据训练流程：
@@ -170,17 +218,6 @@ python -m voln_uav.cli.eval_airsim \
 ~~~
 
 每次运行都会生成 `scene_coverage.json`。使用 `--strict-scenes` 可以在请求的场景缺失时直接终止。
-
-在 Windows 上，可通过统一入口运行 reference 和 random 在线基线：
-
-~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
-$env:BASELINE="reference"
-$env:TRIALS="10"
-.\scripts\run_online_baseline.cmd --episode-index 0 --episode-stride 1 --reference-stride 1 --control-mode teleport --fast-reset --settle-sec 0.0 --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
-~~~
-
-使用 <code>scripts\report_metrics.cmd</code> 汇总运行目录中的论文指标。
 
 ## 实验结果与一致性检查
 
