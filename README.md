@@ -80,11 +80,10 @@ The paper protocol uses at most 128 decisions per episode and a 4 m three-dimens
 ~~~bash
 conda create -n voln-uav python=3.10 -y
 conda activate voln-uav
-pip install -r requirement.txt
-pip install -e ".[real,plots]"
+pip install -e .
 ~~~
 
-Install the CUDA-specific PyTorch build first if the default wheel does not match your system.
+Install the CUDA-specific PyTorch build first if the default wheel does not match your system. The default package installation includes the training, AirSim, real-world, and plotting dependencies used by the released scripts.
 
 ## Dataset Preparation
 
