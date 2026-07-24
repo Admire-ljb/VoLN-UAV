@@ -180,7 +180,7 @@ Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with th
 ## Experimental Results and Consistency Checks
 
 `configs/experiment_results.yaml` is the machine-readable source for the numbers
-reported in the arXiv preprint. It is explicitly labelled
+reported in the paper. It is explicitly labelled
 `arxiv_reported`; these values are never used as substitutes for absent
 evaluation logs.
 
@@ -250,7 +250,7 @@ docs/             Project page, demonstrations, and baseline documentation
 
 ## Citation
 
-Please cite the arXiv preprint:
+If you find this work helpful, please consider citing our paper:
 
 ~~~bibtex
 @article{lou2026voln,
