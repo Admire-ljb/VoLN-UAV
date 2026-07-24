@@ -9,6 +9,5 @@ transformers>=4.56.0
 peft>=0.17.0
 accelerate>=1.0.0
 sentencepiece>=0.2.0
-openai>=1.30.0
 airsim>=1.8.1
 matplotlib>=3.8
