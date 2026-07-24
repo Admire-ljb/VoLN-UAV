@@ -131,7 +131,7 @@ $env:EVAL_MODE="normal"
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_normal
+  --work-dir YOUR_WORK_DIR/reference_test_10_normal
 ~~~
 
 This mode uses AirSim `move_to_position` commands and preserves normal vehicle motion.
@@ -152,7 +152,7 @@ $env:EVAL_MODE="fast"
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+  --work-dir YOUR_WORK_DIR/reference_test_10_fast
 ~~~
 
 This mode uses `setVehiclePose` teleportation, pose-only reset, zero settling time, and a 10 m maximum teleport step.
