@@ -20,12 +20,12 @@
 
 <table>
   <tr>
-    <th width="50%">Simulation</th>
-    <th width="50%">Physical Flight</th>
+    <th width="50%">Simulation — First-Person View</th>
+    <th width="50%">Physical Flight — First-Person View</th>
   </tr>
   <tr>
-    <td><img src="assets/readme/demos/simulation_demo.gif" alt="VoLN simulation demonstration" width="100%"></td>
-    <td><img src="assets/readme/demos/physical_flight_demo.gif" alt="VoLN physical-flight demonstration" width="100%"></td>
+    <td><img src="assets/readme/demos/simulation_demo.gif" alt="VoLN first-person simulation demonstration" width="100%"></td>
+    <td><img src="assets/readme/demos/physical_flight_demo.gif" alt="VoLN first-person physical-flight demonstration" width="100%"></td>
   </tr>
 </table>
 
