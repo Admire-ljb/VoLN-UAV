@@ -1,5 +1,5 @@
 {
-  "source": "manuscript_reported",
+  "source": "arxiv_reported",
   "units": {
     "NE": "m",
     "SR": "percent",
@@ -31,12 +31,12 @@
   },
   "run_status": "not_requested",
   "outputs": {
-    "long_table": "../paper_results_long.csv",
+    "long_table": "../experiment_results_long.csv",
     "wide_table": "main_results_wide.csv",
     "ablation_table": "ablation_results.csv",
     "run_comparison": "run_comparison.csv",
-    "rendered_markdown": "../paper_results.md",
-    "normalized_json": "../paper_results.json",
+    "rendered_markdown": "../experiment_results.md",
+    "normalized_json": "../experiment_results.json",
     "run_coverage": "../run_coverage.json"
   }
 }

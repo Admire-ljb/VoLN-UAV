@@ -1,6 +1,6 @@
-# Manuscript-reported VoLN-UAV results
+# Reported VoLN-UAV experimental results
 
-> Source: `manuscript_reported`. These values reproduce the paper table; they are not substituted for missing evaluation runs.
+> Source: `arxiv_reported`. These values reproduce the arXiv table; they are not substituted for missing evaluation runs.
 
 ## Validation-Seen
 

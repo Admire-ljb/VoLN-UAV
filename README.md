@@ -11,7 +11,7 @@
 </p>
 
 [Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
-[Paper](docs/VoLN-UAV-paper.pdf) ·
+[Paper](https://arxiv.org/abs/2607.21400) ·
 [Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
 [Simulator Environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) ·
 [Documentation](docs/voln_adapted_baselines.md)
@@ -76,7 +76,7 @@ The paper protocol uses at most 128 decisions per episode and a 4 m three-dimens
 | Paper ablations | `scripts/run_paper_ablations.py` |
 | Paper evaluation suite | `scripts/run_paper_evaluation.py` |
 | Paper protocol audit | `scripts/validate_paper_protocol.py` |
-| Paper tables and figures | `scripts/compile_paper_results.py` |
+| Experiment tables and figures | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [Baseline documentation](docs/voln_adapted_baselines.md) |
 
 ## Installation
@@ -181,11 +181,11 @@ $env:TRIALS="10"
 
 Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
 
-## Paper Results and Consistency Checks
+## Experimental Results and Consistency Checks
 
-`configs/paper_results.yaml` is the machine-readable source for the numbers
-already reported in the manuscript. It is explicitly labelled
-`manuscript_reported`; these values are never used as substitutes for absent
+`configs/experiment_results.yaml` is the machine-readable source for the numbers
+reported in the arXiv preprint. It is explicitly labelled
+`arxiv_reported`; these values are never used as substitutes for absent
 evaluation logs.
 
 The committed result package is not limited to YAML. It includes normalized
@@ -193,10 +193,10 @@ JSON, long-form and wide-form CSV files, rendered Markdown tables, PNG/PDF
 figures, run coverage, and per-metric comparison intermediates:
 
 ~~~text
-results/paper/
-  paper_results.json
-  paper_results.md
-  paper_results_long.csv
+results/experiments/
+  experiment_results.json
+  experiment_results.md
+  experiment_results_long.csv
   run_coverage.json
   intermediate/
     README.md
@@ -209,20 +209,20 @@ results/paper/
     test_unseen_ndtw.{png,pdf}
 ~~~
 
-Export the paper tables and plots:
+Export the experiment tables and plots:
 
 ~~~bash
-python scripts/compile_paper_results.py \
-  --results configs/paper_results.yaml \
-  --output-dir results/paper
+python scripts/compile_experiment_results.py \
+  --results configs/experiment_results.yaml \
+  --output-dir results/experiments
 ~~~
 
 Compare available closed-loop runs against the reported table:
 
 ~~~bash
-python scripts/compile_paper_results.py \
-  --results configs/paper_results.yaml \
-  --output-dir results/paper \
+python scripts/compile_experiment_results.py \
+  --results configs/experiment_results.yaml \
+  --output-dir results/experiments \
   --runs-root D:/VoLN_dataset/VoLN-UAV-runs \
   --backend airsim
 ~~~
@@ -233,7 +233,7 @@ include every method and split.
 
 | Test-Unseen SR | Test-Unseen nDTW |
 |---|---|
-| ![Test-Unseen SR](results/paper/figures/test_unseen_sr.png) | ![Test-Unseen nDTW](results/paper/figures/test_unseen_ndtw.png) |
+| ![Test-Unseen SR](results/experiments/figures/test_unseen_sr.png) | ![Test-Unseen nDTW](results/experiments/figures/test_unseen_ndtw.png) |
 
 ## Repository Structure
 
@@ -254,15 +254,18 @@ docs/             Project page, demonstrations, and baseline documentation
 
 ## Citation
 
-Please cite the preprint as follows. The arXiv identifier will be added after registration.
+Please cite the arXiv preprint:
 
 ~~~bibtex
-@misc{lou2026voln,
+@article{lou2026voln,
   title  = {VoLN: Vision-Only Long-Horizon Navigation---Paradigm, Benchmark, and Method},
   author = {Lou, Jiabin and Wang, Haopeng and Wang, Yuanshuai and Liu, Xinyu and Lv, Xuxin and Guo, Yuxin and Huang, Lei and Shi, Rongye and Wu, Wenjun},
+  journal = {arXiv preprint arXiv:2607.21400},
   year   = {2026},
-  note   = {Preprint},
-  url    = {https://github.com/Admire-ljb/VoLN-UAV}
+  eprint = {2607.21400},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.RO},
+  url    = {https://arxiv.org/abs/2607.21400}
 }
 ~~~
 

@@ -1,5 +1,0 @@
-source,split,variant,CT,EER,NE,SR,OSR,nDTW,SPL
-manuscript_reported,Test-Unseen,VoLN-MLLM,1.42,0.5,119.0,5.7,11.8,45.8,4.3
-manuscript_reported,Test-Unseen,No-Align,1.36,0.9,162.8,2.3,7.1,29.6,1.2
-manuscript_reported,Test-Unseen,No-LoRA,1.45,5.8,176.9,2.8,7.8,27.2,1.4
-manuscript_reported,Test-Unseen,CLIP-Input,1.98,1.5,158.6,2.9,8.2,30.9,1.6
