@@ -2,11 +2,15 @@
 
 # VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method
 
-[Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
-[Paper](https://arxiv.org/abs/2607.21400) ·
-[Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
-[Simulator Environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) ·
-[Documentation](docs/voln_adapted_baselines.md)
+<p align="center">
+  <a href="https://admire-ljb.github.io/VoLN-UAV/"><strong>Project Page</strong></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="https://arxiv.org/abs/2607.21400"><strong>Paper</strong></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset"><strong>Dataset</strong></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="https://huggingface.co/datasets/Louj/VoLN-UAV-ENV"><strong>Simulator Environments</strong></a>
+</p>
 
 </div>
 
