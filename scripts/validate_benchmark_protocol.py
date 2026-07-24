@@ -9,7 +9,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from voln_uav.cli.validate_paper_protocol import main
+from voln_uav.cli.validate_benchmark_protocol import main
 
 
 if __name__ == "__main__":

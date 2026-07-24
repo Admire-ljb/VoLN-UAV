@@ -12,7 +12,7 @@ from voln_uav.evaluation.paper_protocol import (
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Audit existing split manifests against the VoLN-UAV paper protocol without modifying the dataset."
+        description="Audit existing split manifests against the VoLN-UAV benchmark protocol without modifying the dataset."
     )
     parser.add_argument("--benchmark-root", required=True)
     parser.add_argument("--protocol", default="configs/paper_protocol.yaml")

@@ -37,7 +37,7 @@
 
 - VoLN-MLLM 视觉适配器与规划器训练；
 - 适配 VoLN 任务的 Seq2Seq-VG、CMA-VG 和 LAG-VG 基线；
-- AirSim 闭环论文评估与离线路径回放诊断；
+- AirSim 闭环基准评估；
 - No-Align、No-LoRA 和 CLIP-Input 消融实验；
 - NE、SR、OSR、nDTW、SPL、CT 和 EER 指标统计。
 
@@ -80,11 +80,10 @@ VoLN-MLLM 包含两个阶段：
 |---|---|
 | 适配器训练 | `configs/train_adapter_dataset_release.yaml` |
 | 规划器训练 | `configs/train_planner_dataset_release.yaml` |
-| 离线路径回放诊断 | `configs/eval_offline_dataset_release.yaml` |
 | AirSim 评估 | `configs/eval_airsim_dataset_release.yaml` |
-| 论文消融实验 | `scripts/run_paper_ablations.py` |
+| 消融实验 | `scripts/run_ablation_experiments.py` |
 | 基准评估套件 | `scripts/run_benchmark_evaluation.py` |
-| 论文协议审计 | `scripts/validate_paper_protocol.py` |
+| 基准协议审计 | `scripts/validate_benchmark_protocol.py` |
 | 实验表格与图表 | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [基线文档](docs/voln_adapted_baselines.md) |
 
@@ -175,20 +174,12 @@ VoLN 基线使用各自独立的训练入口与 checkpoint。Seq2Seq-VG、CMA-VG
 运行 No-Align、No-LoRA 和 CLIP-Input 三组消融实验：
 
 ~~~bash
-python scripts/run_paper_ablations.py --stages train airsim --device cuda
+python scripts/run_ablation_experiments.py --stages train airsim --device cuda
 ~~~
 
 `No-Align` 使用未经 CLIP 教师监督训练的维度适配器；`No-LoRA` 冻结 Vicuna 且不插入 LoRA 分支；`CLIP-Input` 将冻结的 CLIP ViT-B/16 图像特征直接输入规划器。
 
 ## 评估
-
-离线路径回放诊断：
-
-~~~bash
-python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_release.yaml --device cuda
-~~~
-
-该诊断流程回放参考轨迹中记录的观测。论文表格采用下述 AirSim 闭环评估结果。
 
 AirSim 预检查与闭环评估：
 

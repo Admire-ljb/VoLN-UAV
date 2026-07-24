@@ -37,7 +37,7 @@ The repository covers:
 
 - VoLN-MLLM adapter and planner training;
 - VoLN-adapted Seq2Seq-VG, CMA-VG, and LAG-VG baselines;
-- AirSim closed-loop benchmark evaluation and offline route-replay diagnostics;
+- AirSim closed-loop benchmark evaluation;
 - the No-Align, No-LoRA, and CLIP-Input ablations;
 - metric reporting for NE, SR, OSR, nDTW, SPL, CT, and EER.
 
@@ -82,11 +82,10 @@ The policy receives onboard RGB and deployable body-frame proprioception; world-
 |---|---|
 | Adapter training | `configs/train_adapter_dataset_release.yaml` |
 | Planner training | `configs/train_planner_dataset_release.yaml` |
-| Offline route-replay diagnostic | `configs/eval_offline_dataset_release.yaml` |
 | AirSim evaluation | `configs/eval_airsim_dataset_release.yaml` |
-| Paper ablations | `scripts/run_paper_ablations.py` |
+| Ablation experiments | `scripts/run_ablation_experiments.py` |
 | Benchmark evaluation suite | `scripts/run_benchmark_evaluation.py` |
-| Paper protocol audit | `scripts/validate_paper_protocol.py` |
+| Benchmark protocol audit | `scripts/validate_benchmark_protocol.py` |
 | Experiment tables and figures | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [Baseline documentation](docs/voln_adapted_baselines.md) |
 
@@ -180,20 +179,12 @@ The VoLN-adapted baselines have separate training entry points and checkpoints. 
 Run the three manuscript ablations (`No-Align`, `No-LoRA`, and `CLIP-Input`) with their independent checkpoints:
 
 ~~~bash
-python scripts/run_paper_ablations.py --stages train airsim --device cuda
+python scripts/run_ablation_experiments.py --stages train airsim --device cuda
 ~~~
 
 `No-Align` saves an untrained dimensional adapter without CLIP-teacher supervision, `No-LoRA` freezes Vicuna without inserting LoRA branches, and `CLIP-Input` feeds frozen CLIP ViT-B/16 image features directly to the planner.
 
 ## Evaluation
-
-Offline route-replay diagnostic:
-
-~~~bash
-python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_release.yaml --device cuda
-~~~
-
-This diagnostic replays observations from the recorded route. Manuscript tables use the AirSim closed-loop backend below.
 
 AirSim preflight and closed-loop evaluation:
 
