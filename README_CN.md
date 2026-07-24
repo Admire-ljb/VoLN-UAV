@@ -1,7 +1,4 @@
-<p align="right">
-  <a href="./README.md"><kbd>English</kbd></a>
-  <a href="./README_CN.md"><kbd>简体中文 ✓</kbd></a>
-</p>
+<p><strong>中文</strong> · <a href="./README.md">English</a></p>
 
 <div align="center">
 
