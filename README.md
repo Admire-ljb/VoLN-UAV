@@ -37,7 +37,7 @@ The repository covers:
 
 - VoLN-MLLM adapter and planner training;
 - VoLN-adapted Seq2Seq-VG, CMA-VG, and LAG-VG baselines;
-- AirSim closed-loop paper evaluation and offline route-replay diagnostics;
+- AirSim closed-loop benchmark evaluation and offline route-replay diagnostics;
 - the No-Align, No-LoRA, and CLIP-Input ablations;
 - metric reporting for NE, SR, OSR, nDTW, SPL, CT, and EER.
 
@@ -85,7 +85,7 @@ The policy receives onboard RGB and deployable body-frame proprioception; world-
 | Offline route-replay diagnostic | `configs/eval_offline_dataset_release.yaml` |
 | AirSim evaluation | `configs/eval_airsim_dataset_release.yaml` |
 | Paper ablations | `scripts/run_paper_ablations.py` |
-| Paper evaluation suite | `scripts/run_paper_evaluation.py` |
+| Benchmark evaluation suite | `scripts/run_benchmark_evaluation.py` |
 | Paper protocol audit | `scripts/validate_paper_protocol.py` |
 | Experiment tables and figures | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [Baseline documentation](docs/voln_adapted_baselines.md) |
@@ -157,7 +157,7 @@ python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.
 Run all manuscript methods on Validation-Seen and Test-Unseen:
 
 ~~~bash
-python scripts/run_paper_evaluation.py \
+python scripts/run_benchmark_evaluation.py \
   --methods random seq2seq_vg cma lag voln_mllm \
   --splits validation_seen test_unseen \
   --device cuda

@@ -83,7 +83,7 @@ VoLN-MLLM 包含两个阶段：
 | 离线路径回放诊断 | `configs/eval_offline_dataset_release.yaml` |
 | AirSim 评估 | `configs/eval_airsim_dataset_release.yaml` |
 | 论文消融实验 | `scripts/run_paper_ablations.py` |
-| 论文评估套件 | `scripts/run_paper_evaluation.py` |
+| 基准评估套件 | `scripts/run_benchmark_evaluation.py` |
 | 论文协议审计 | `scripts/validate_paper_protocol.py` |
 | 实验表格与图表 | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [基线文档](docs/voln_adapted_baselines.md) |
@@ -152,7 +152,7 @@ python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.
 在 Validation-Seen 和 Test-Unseen 上运行全部论文方法：
 
 ~~~bash
-python scripts/run_paper_evaluation.py \
+python scripts/run_benchmark_evaluation.py \
   --methods random seq2seq_vg cma lag voln_mllm \
   --splits validation_seen test_unseen \
   --device cuda
