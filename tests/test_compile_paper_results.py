@@ -34,8 +34,29 @@ def test_compile_results_exports_tables_and_skips_absent_runs(tmp_path: Path) ->
     assert (output / "paper_results.md").exists()
     assert (output / "paper_results.json").exists()
     assert (output / "run_coverage.json").exists()
+    assert (output / "intermediate" / "main_results_wide.csv").exists()
+    assert (output / "intermediate" / "ablation_results.csv").exists()
+    assert (output / "intermediate" / "run_comparison.csv").exists()
+    assert (output / "intermediate" / "result_manifest.json").exists()
+    assert (output / "intermediate" / "README.md").exists()
 
     with (output / "paper_results_long.csv").open("r", encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     assert len(rows) == 30
     assert all(row["source"] == "manuscript_reported" for row in rows)
+
+    with (output / "intermediate" / "main_results_wide.csv").open(
+        "r",
+        encoding="utf-8",
+        newline="",
+    ) as stream:
+        wide_rows = list(csv.DictReader(stream))
+    assert len(wide_rows) == 10
+
+    with (output / "intermediate" / "ablation_results.csv").open(
+        "r",
+        encoding="utf-8",
+        newline="",
+    ) as stream:
+        ablation_rows = list(csv.DictReader(stream))
+    assert len(ablation_rows) == 4

@@ -16,7 +16,7 @@ def _episode() -> dict:
     ]
     for x, y, z, yaw in points:
         states.append({"position": [x, y, z], "yaw": yaw})
-    return {"episode_id": "toy_route", "difficulty": "Normal", "states": states}
+    return {"episode_id": "unit_route", "difficulty": "Normal", "states": states}
 
 
 def test_plan_route_beacons_is_reproducible_and_adds_target() -> None:

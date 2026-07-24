@@ -134,8 +134,8 @@ class VoLNPlanner(nn.Module):
             self.stop_head = nn.Linear(lm_hidden, 1)
             self._semantic_token_ids = self._tokenize_semantic_bank()
         else:
-            # Lightweight fallback retained for toy smoke tests only. Paper release
-            # configs always provide planner_backbone=lmsys/vicuna-7b-v1.5.
+            # Compact non-language-model fallback retained for focused unit tests.
+            # Paper release configs always use lmsys/vicuna-7b-v1.5.
             self.history_proj = nn.Linear(embed_dim + proprio_dim, hidden_dim)
             self.image_proj = nn.Linear(embed_dim, hidden_dim)
             self.proprio_proj = nn.Linear(proprio_dim, hidden_dim)

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Iterable
 
-import hashlib
-import numpy as np
 import torch
 from torch import nn
 
@@ -23,41 +21,6 @@ class FrozenModule(nn.Module):
         for p in self.parameters():
             p.requires_grad = False
         self.eval()
-
-
-class ToyImageEncoder(FrozenModule):
-    def __init__(self, out_dim: int, variant: str = "toy", image_size: int = 64) -> None:
-        super().__init__()
-        seed = {
-            "toy_dino": 13,
-            "toy_clip": 29,
-            "toy_aux": 41,
-        }.get(variant, 7)
-        g = torch.Generator().manual_seed(seed)
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 32, 3, stride=2, padding=1),
-            nn.GELU(),
-            nn.Conv2d(32, 64, 3, stride=2, padding=1),
-            nn.GELU(),
-            nn.Conv2d(64, 128, 3, stride=2, padding=1),
-            nn.GELU(),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        self.proj = nn.Linear(128, out_dim)
-        self._reset(g)
-        self.freeze()
-
-    def _reset(self, g: torch.Generator) -> None:
-        for mod in self.modules():
-            if isinstance(mod, nn.Conv2d) or isinstance(mod, nn.Linear):
-                nn.init.normal_(mod.weight, mean=0.0, std=0.02, generator=g)
-                if mod.bias is not None:
-                    nn.init.zeros_(mod.bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = self.features(x).flatten(1)
-        out = self.proj(feat)
-        return torch.nn.functional.normalize(out, dim=-1)
 
 
 class TimmImageEncoder(FrozenModule):
@@ -137,8 +100,6 @@ class HFVisionEncoder(FrozenModule):
 
 
 def build_image_encoder(name: str, out_dim: int, image_size: int = 64) -> nn.Module:
-    if name in {"toy_dino", "toy_clip", "toy_aux"}:
-        return ToyImageEncoder(out_dim=out_dim, variant=name, image_size=image_size)
     if name.startswith("open_clip:"):
         model_name, pretrained = parse_open_clip_spec(name)
         return OpenCLIPImageEncoder(model_name=model_name, pretrained=pretrained, out_dim=out_dim)
@@ -150,23 +111,8 @@ def build_image_encoder(name: str, out_dim: int, image_size: int = 64) -> nn.Mod
 
 
 
-def encode_texts_toy(texts: Iterable[str], dim: int) -> torch.Tensor:
-    vectors = []
-    for text in texts:
-        digest = hashlib.md5(text.encode("utf-8")).hexdigest()
-        seed = int(digest[:8], 16)
-        rng = np.random.default_rng(seed)
-        vec = torch.tensor(rng.standard_normal(dim), dtype=torch.float32)
-        vec = vec / (vec.norm() + 1e-6)
-        vectors.append(vec)
-    return torch.stack(vectors, dim=0)
-
-
-
 def encode_texts(texts: Iterable[str], encoder_name: str, dim: int) -> torch.Tensor:
     texts = list(texts)
-    if encoder_name == "toy_text":
-        return encode_texts_toy(texts, dim=dim)
     if encoder_name.startswith("open_clip"):
         try:
             import open_clip

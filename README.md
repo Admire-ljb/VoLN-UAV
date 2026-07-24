@@ -11,7 +11,7 @@
 </p>
 
 [Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
-[Paper](paperv1.pdf) ·
+[Paper](docs/VoLN-UAV-paper.pdf) ·
 [Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
 [Simulator Environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) ·
 [Documentation](docs/voln_adapted_baselines.md)
@@ -187,6 +187,27 @@ Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with th
 already reported in the manuscript. It is explicitly labelled
 `manuscript_reported`; these values are never used as substitutes for absent
 evaluation logs.
+
+The committed result package is not limited to YAML. It includes normalized
+JSON, long-form and wide-form CSV files, rendered Markdown tables, PNG/PDF
+figures, run coverage, and per-metric comparison intermediates:
+
+~~~text
+results/paper/
+  paper_results.json
+  paper_results.md
+  paper_results_long.csv
+  run_coverage.json
+  intermediate/
+    README.md
+    main_results_wide.csv
+    ablation_results.csv
+    run_comparison.csv
+    result_manifest.json
+  figures/
+    test_unseen_sr.{png,pdf}
+    test_unseen_ndtw.{png,pdf}
+~~~
 
 Export the paper tables and plots:
 
