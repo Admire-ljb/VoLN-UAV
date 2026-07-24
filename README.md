@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://admire-ljb.github.io/VoLN-UAV/">🌐 <strong>Project Page</strong></a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://arxiv.org/abs/2607.21400"><img src="https://static.arxiv.org/static/base/1.0.1/images/arxiv-logo-primary-light.svg" alt="arXiv" width="32" height="14" align="absmiddle"> <strong>Paper</strong></a>
+  <a href="https://arxiv.org/abs/2607.21400"><img src="docs/assets/arxiv-logo-primary.svg" alt="arXiv paper" width="49" height="22" align="absmiddle"></a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="https://huggingface.co/datasets/Louj/VoLN-UAV-dataset">🤗 <strong>Dataset</strong></a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
