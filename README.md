@@ -2,14 +2,6 @@
 
 # VoLN: Vision-Only Long-Horizon Navigation—Paradigm, Benchmark, and Method
 
-### Official Training and Evaluation Repository
-
-<p>
-  Jiabin Lou &nbsp;·&nbsp; Haopeng Wang &nbsp;·&nbsp; Yuanshuai Wang &nbsp;·&nbsp; Xinyu Liu &nbsp;·&nbsp; Xuxin Lv &nbsp;·&nbsp; Yuxin Guo &nbsp;·&nbsp; Lei Huang &nbsp;·&nbsp; Rongye Shi &nbsp;·&nbsp; Wenjun Wu<sup>*</sup><br>
-  Beihang University, Beijing, China<br>
-  <sup>*</sup> Corresponding author
-</p>
-
 [Project Page](https://admire-ljb.github.io/VoLN-UAV/) ·
 [Paper](https://arxiv.org/abs/2607.21400) ·
 [Dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) ·
