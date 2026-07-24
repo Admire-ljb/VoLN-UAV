@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "source": "manuscript_reported",
+  "source": "arxiv_reported",
   "units": {
     "NE": "m",
     "SR": "percent",
