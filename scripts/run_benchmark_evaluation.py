@@ -14,7 +14,7 @@ METHOD_CONFIGS = {
     "cma": "cma_dataset_release",
     "lag": "lag_dataset_release",
 }
-PAPER_SPLITS = ("validation_seen", "test_unseen")
+BENCHMARK_SPLITS = ("validation_seen", "test_unseen")
 
 
 def _run(command: list[str], env: dict[str, str], dry_run: bool) -> None:
@@ -25,15 +25,15 @@ def _run(command: list[str], env: dict[str, str], dry_run: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Evaluate manuscript methods on Validation-Seen and Test-Unseen without changing dataset files."
+        description="Evaluate released methods on Validation-Seen and Test-Unseen without changing dataset files."
     )
     parser.add_argument("--methods", nargs="+", choices=sorted(METHOD_CONFIGS))
-    parser.add_argument("--splits", nargs="+", choices=PAPER_SPLITS, default=list(PAPER_SPLITS))
+    parser.add_argument("--splits", nargs="+", choices=BENCHMARK_SPLITS, default=list(BENCHMARK_SPLITS))
     parser.add_argument("--backend", choices=("offline", "airsim"), default="airsim")
     parser.add_argument(
         "--allow-offline-diagnostic",
         action="store_true",
-        help="Allow the route-replay diagnostic backend; it is not used for manuscript tables.",
+        help="Allow the route-replay diagnostic backend; it is not used for closed-loop benchmark results.",
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--python", default=sys.executable)
@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument(
         "--allow-scene-subset-diagnostic",
         action="store_true",
-        help="Allow selected-scene diagnostics; these runs are not manuscript-table runs.",
+        help="Allow selected-scene diagnostics; these runs are not full-benchmark runs.",
     )
     parser.add_argument(
         "--strict-scenes",
@@ -65,7 +65,7 @@ def main() -> None:
         parser.error("--scenes requires --allow-scene-subset-diagnostic")
     methods = args.methods or (["random", "voln_mllm", "seq2seq_vg", "cma", "lag"] if args.backend == "airsim" else ["voln_mllm", "seq2seq_vg", "cma", "lag"])
     if args.backend == "offline" and "random" in methods:
-        parser.error("The Random baseline requires --backend airsim so it shares the paper closed-loop protocol.")
+        parser.error("The Random baseline requires --backend airsim so it shares the benchmark closed-loop protocol.")
 
     repo_root = Path(__file__).resolve().parents[1]
     output_root = Path(args.output_root)
@@ -77,7 +77,7 @@ def main() -> None:
         config_name = METHOD_CONFIGS[method]
         config = repo_root / "configs" / f"eval_{args.backend}_{config_name}.yaml"
         for split in args.splits:
-            run_kind = "diagnostic" if args.scenes or args.backend == "offline" else "paper"
+            run_kind = "diagnostic" if args.scenes or args.backend == "offline" else "benchmark"
             work_dir = output_root / f"eval_{args.backend}_{method}_{split}_{run_kind}"
             command = [
                 args.python,

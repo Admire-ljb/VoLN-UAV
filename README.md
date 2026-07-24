@@ -37,7 +37,7 @@
 
 - VoLN-MLLM 视觉适配器与规划器训练；
 - 适配 VoLN 任务的 Seq2Seq-VG、CMA-VG 和 LAG-VG 基线；
-- AirSim 闭环论文评估与离线路径回放诊断；
+- AirSim 闭环基准评估与离线路径回放诊断；
 - No-Align、No-LoRA 和 CLIP-Input 消融实验；
 - NE、SR、OSR、nDTW、SPL、CT 和 EER 指标统计。
 
@@ -83,7 +83,7 @@ VoLN-MLLM 包含两个阶段：
 | 离线路径回放诊断 | `configs/eval_offline_dataset_release.yaml` |
 | AirSim 评估 | `configs/eval_airsim_dataset_release.yaml` |
 | 论文消融实验 | `scripts/run_paper_ablations.py` |
-| 论文评估套件 | `scripts/run_paper_evaluation.py` |
+| 基准评估套件 | `scripts/run_benchmark_evaluation.py` |
 | 论文协议审计 | `scripts/validate_paper_protocol.py` |
 | 实验表格与图表 | `scripts/compile_experiment_results.py` |
 | Seq2Seq-VG / CMA-VG / LAG-VG | [基线文档](docs/voln_adapted_baselines.md) |
@@ -107,6 +107,54 @@ pip install -e .
   - 难度分布：Easy 917（51.3%）、Normal 627（35.1%）、Hard 242（13.5%）
 - ✅ **仿真环境发布：** AirSim 环境与导航数据集分别提供下载。
 - ⏳ **完整版本：** 计划扩展至全部 17 个环境、7,210 个 episodes。
+
+## 真值轨迹回放
+
+在 Windows 上，下面两个命令运行 **Ground-Truth Trajectory Replay（真值轨迹回放）**。它直接使用数据集中记录的真值 waypoint，属于 reference oracle，仅用于验证 AirSim 坐标对齐、beacon/target 放置、episode 切换和指标记录。它不是学习式导航基线，不应作为参评方法写入基准对比表。通过 `EVAL_MODE` 选择执行模式。
+
+<details open>
+<summary><strong>真值轨迹回放——正常速度</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="normal"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_normal
+~~~
+
+该模式使用 AirSim `move_to_position` 指令，保留正常的无人机运动过程。
+
+</details>
+
+<details>
+<summary><strong>真值轨迹回放——快速诊断</strong></summary>
+
+~~~powershell
+cd D:\VoLN_dataset\github-VoLN-UAV
+
+$env:BASELINE="reference"
+$env:TRIALS="10"
+$env:EVAL_MODE="fast"
+
+.\scripts\run_online_baseline.cmd `
+  --episode-index 0 `
+  --episode-stride 1 `
+  --reference-stride 1 `
+  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+~~~
+
+该模式使用 `setVehiclePose` 瞬移、仅位姿复位、零等待时间，并将单次最大瞬移距离设为 10 m。
+
+</details>
+
+使用 <code>scripts\report_metrics.cmd</code> 汇总运行目录中的论文指标。
 
 ## 训练
 
@@ -152,7 +200,7 @@ python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.
 在 Validation-Seen 和 Test-Unseen 上运行全部论文方法：
 
 ~~~bash
-python scripts/run_paper_evaluation.py \
+python scripts/run_benchmark_evaluation.py \
   --methods random seq2seq_vg cma lag voln_mllm \
   --splits validation_seen test_unseen \
   --device cuda
@@ -170,17 +218,6 @@ python -m voln_uav.cli.eval_airsim \
 ~~~
 
 每次运行都会生成 `scene_coverage.json`。使用 `--strict-scenes` 可以在请求的场景缺失时直接终止。
-
-在 Windows 上，可通过统一入口运行 reference 和 random 在线基线：
-
-~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
-$env:BASELINE="reference"
-$env:TRIALS="10"
-.\scripts\run_online_baseline.cmd --episode-index 0 --episode-stride 1 --reference-stride 1 --control-mode teleport --fast-reset --settle-sec 0.0 --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
-~~~
-
-使用 <code>scripts\report_metrics.cmd</code> 汇总运行目录中的论文指标。
 
 ## 实验结果与一致性检查
 
