@@ -1,4 +1,4 @@
-<p><a href="./README_CN.md">中文</a> · <strong>English</strong></p>
+<p><a href="https://github.com/Admire-ljb/VoLN-UAV/tree/zh-CN">中文</a> · <strong>English</strong></p>
 
 <div align="center">
 
