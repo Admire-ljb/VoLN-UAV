@@ -85,31 +85,18 @@ pip install -e .
 
 Install the CUDA-specific PyTorch build first if the default wheel does not match your system. The default package installation includes the training, AirSim, real-world, and plotting dependencies used by the released scripts.
 
-## Dataset Preparation
+## Dataset Release Plan
 
-Download the [navigation dataset](https://huggingface.co/datasets/Louj/VoLN-UAV-dataset) and extract the metadata and required split shards into one directory. Download the [simulator environments](https://huggingface.co/datasets/Louj/VoLN-UAV-ENV) separately for online AirSim evaluation.
-
-Audit the existing split manifests without changing the dataset:
-
-~~~bash
-python scripts/validate_paper_protocol.py \
-  --benchmark-root D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark \
-  --protocol configs/paper_protocol.yaml \
-  --out results/local_protocol_coverage.json
-~~~
-
-The complete internal benchmark has 7,210 episodes in 17 environments. A
-public or locally selected subset may be smaller. The audit marks such a
-release as `partial`, verifies the available split invariants, and reports
-absent optional environments such as Campus, Park, Tunnel, and Ruins. Missing
-environments are skipped; they are not converted into zero-valued episodes.
-Add `--strict` when a complete paper-scale release is required.
-
-Set <code>source_root</code>, <code>output_root</code>, and the episode-level <code>split_manifest</code> in <code>configs/benchmark_dataset_release.yaml</code>. The split manifest assigns each episode to Train, Validation-Seen, or Test-Unseen and stores shortest-path provenance for SPL. Then build the benchmark:
-
-~~~bash
-python -m voln_uav.cli.build_benchmark --config configs/benchmark_dataset_release.yaml
-~~~
+- ✅ **Initial release:** 1,786 episodes across four environments: Brushify,
+  BrushifyCountryRoads, BrushifyUrban, and BrushifyForestPack.
+  - Train: 1,067 episodes (59.7%)
+  - Validation-Seen: 319 episodes (17.9%)
+  - Test-Unseen: 400 episodes (22.4%)
+  - Difficulty: 917 Easy (51.3%), 627 Normal (35.1%), and 242 Hard (13.5%)
+- ✅ **Simulator release:** AirSim environments are available separately from
+  the navigation dataset.
+- ⏳ **Full release:** expand the public benchmark to all 7,210 episodes across
+  17 environments.
 
 ## Training
 
