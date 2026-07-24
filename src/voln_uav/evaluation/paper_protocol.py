@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from voln_uav.common.io import read_jsonl, write_json
+from voln_uav.benchmark.splitter import trajectory_fingerprint
 
 
 PAPER_SPLIT_KEYS = ("train", "validation_seen", "test_unseen")
@@ -132,6 +133,7 @@ def inspect_benchmark_protocol(
     root = Path(benchmark_root)
     split_reports: dict[str, Any] = {}
     split_scenes: dict[str, set[str]] = {}
+    split_episodes: dict[str, list[dict[str, Any]]] = {}
     total_episodes = 0
     issues: list[str] = []
     warnings: list[str] = []
@@ -146,6 +148,7 @@ def inspect_benchmark_protocol(
                 "expected_episodes": int(spec["expected_episodes"]),
             }
             split_scenes[split_name] = set()
+            split_episodes[split_name] = []
             issues.append(f"Missing {split_name} episode file ({', '.join(candidates)})")
             continue
 
@@ -168,11 +171,17 @@ def inspect_benchmark_protocol(
         }
         split_reports[split_name] = report
         split_scenes[split_name] = scenes
+        split_episodes[split_name] = episodes
         total_episodes += len(episodes)
-        if report["status"] == "partial":
-            warnings.append(
+        if not report["episode_count_matches"]:
+            issues.append(
                 f"{split_name} contains {len(episodes)} episodes; "
                 f"the manuscript reports {expected_episodes}"
+            )
+        if not report["environment_count_matches"]:
+            issues.append(
+                f"{split_name} contains {len(scenes)} environments; "
+                f"the manuscript reports {expected_environments}"
             )
 
     train_scenes = split_scenes["train"]
@@ -190,6 +199,66 @@ def inspect_benchmark_protocol(
             + ", ".join(sorted(test_overlap))
         )
 
+    all_episode_ids: list[str] = []
+    for episodes in split_episodes.values():
+        all_episode_ids.extend(str(episode["episode_id"]) for episode in episodes)
+    duplicate_episode_ids = sorted(
+        episode_id
+        for episode_id, count in Counter(all_episode_ids).items()
+        if count > 1
+    )
+    if duplicate_episode_ids:
+        issues.append(
+            f"Episode IDs occur in more than one split ({len(duplicate_episode_ids)} duplicates)"
+        )
+
+    def route_identity(episode: dict[str, Any]) -> str | None:
+        if episode.get("trajectory_hash"):
+            return str(episode["trajectory_hash"])
+        if episode.get("states"):
+            return trajectory_fingerprint(episode)
+        if episode.get("trajectory_id"):
+            return f"{episode['scene_id']}:{episode['trajectory_id']}"
+        return None
+
+    train_routes = {
+        identity
+        for episode in split_episodes["train"]
+        if (identity := route_identity(episode)) is not None
+    }
+    val_routes = {
+        identity
+        for episode in split_episodes["validation_seen"]
+        if (identity := route_identity(episode)) is not None
+    }
+    if split_episodes["train"] and len(train_routes) != len(split_episodes["train"]):
+        issues.append("Train episodes lack trajectory IDs/hashes required for split auditing")
+    if split_episodes["validation_seen"] and len(val_routes) != len(split_episodes["validation_seen"]):
+        issues.append("Validation-Seen episodes lack trajectory IDs/hashes required for split auditing")
+    if train_routes & val_routes:
+        issues.append("Train and Validation-Seen contain overlapping trajectories")
+
+    train_sources = {
+        str(episode["scene_source"])
+        for episode in split_episodes["train"]
+        if episode.get("scene_source")
+    }
+    test_sources = {
+        str(episode["scene_source"])
+        for episode in split_episodes["test_unseen"]
+        if episode.get("scene_source")
+    }
+    require_source_holdout = bool(protocol.get("splits", {}).get("require_held_out_scene_source", True))
+    if require_source_holdout:
+        if any(
+            not episode.get("scene_source")
+            for split_name in ("train", "test_unseen")
+            for episode in split_episodes[split_name]
+        ):
+            issues.append("Train/Test-Unseen episodes lack scene_source for source-holdout auditing")
+        elif train_sources & test_sources:
+            issues.append("Test-Unseen scene sources overlap the training pool")
+
     present_scenes = train_scenes | validation_scenes | test_scenes
     optional_scenes = [str(scene) for scene in protocol.get("optional_scene_ids", []) or []]
     present_keys = {_normalise_scene_id(scene) for scene in present_scenes}
@@ -197,16 +266,43 @@ def inspect_benchmark_protocol(
         scene for scene in optional_scenes if _normalise_scene_id(scene) not in present_keys
     ]
     expected_total = int(protocol["dataset"]["expected_episodes"])
+    expected_environment_count = int(protocol["dataset"]["expected_environments"])
+    if total_episodes != expected_total:
+        issues.append(
+            f"Benchmark contains {total_episodes} episodes; the manuscript reports {expected_total}"
+        )
+    if len(present_scenes) != expected_environment_count:
+        issues.append(
+            f"Benchmark contains {len(present_scenes)} unique environments; "
+            f"the manuscript reports {expected_environment_count}"
+        )
+
+    difficulty_counts = Counter(
+        str(episode.get("difficulty", "Unknown"))
+        for episodes in split_episodes.values()
+        for episode in episodes
+    )
+    difficulty_mix = dict(protocol.get("dataset", {}).get("difficulty_mix", {}) or {})
+    tolerance = float(protocol.get("dataset", {}).get("difficulty_mix_tolerance", 0.01))
+    if total_episodes and difficulty_mix:
+        for difficulty, expected_ratio in difficulty_mix.items():
+            actual_ratio = difficulty_counts.get(str(difficulty), 0) / total_episodes
+            if abs(actual_ratio - float(expected_ratio)) > tolerance:
+                issues.append(
+                    f"{difficulty} difficulty ratio is {actual_ratio:.4f}; "
+                    f"expected {float(expected_ratio):.4f}±{tolerance:.4f}"
+                )
     report = {
         "protocol": str(protocol.get("name", "VoLN-UAV paper protocol")),
         "benchmark_root": str(root.resolve()),
-        "status": "ready" if not issues and total_episodes == expected_total else "partial",
+        "status": "ready" if not issues else "partial",
         "splits": split_reports,
         "total_episodes": total_episodes,
         "expected_total_episodes": expected_total,
         "total_count_matches": total_episodes == expected_total,
         "unique_environments": len(present_scenes),
-        "expected_environments": int(protocol["dataset"]["expected_environments"]),
+        "expected_environments": expected_environment_count,
+        "difficulty_counts": dict(sorted(difficulty_counts.items())),
         "missing_optional_scenes": missing_optional,
         "warnings": warnings,
         "issues": issues,
@@ -216,3 +312,54 @@ def inspect_benchmark_protocol(
 
 def write_protocol_report(report: dict[str, Any], path: str | Path) -> None:
     write_json(report, path)
+
+
+def require_paper_protocol_ready(
+    benchmark_root: str | Path,
+    config: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Run the full benchmark gate before a paper-result evaluation."""
+    if not bool(config.get("strict_paper_protocol", False)):
+        return None
+    protocol_path = resolve_protocol_path(config)
+    if protocol_path is None or not protocol_path.exists():
+        raise ValueError("strict_paper_protocol requires a valid paper_protocol YAML")
+    report = inspect_benchmark_protocol(
+        benchmark_root,
+        load_paper_protocol(protocol_path),
+    )
+    if report["status"] != "ready":
+        preview = "\n- ".join(str(issue) for issue in report["issues"][:12])
+        raise ValueError("Benchmark is not paper-protocol ready:\n- " + preview)
+    return report
+
+
+def require_full_paper_split_selection(
+    config: dict[str, Any],
+    protocol_report: dict[str, Any] | None,
+    selected_episodes: list[dict[str, Any]],
+) -> None:
+    """Require a complete manuscript split when strict evaluation is enabled."""
+    if protocol_report is None:
+        return
+    configured_name = Path(str(config["episodes_file"])).name
+    matching_split: dict[str, Any] | None = None
+    matching_name: str | None = None
+    for split_name, split_report in protocol_report["splits"].items():
+        reported_file = split_report.get("file")
+        if reported_file and Path(str(reported_file)).name == configured_name:
+            matching_split = split_report
+            matching_name = split_name
+            break
+    if matching_split is None:
+        raise ValueError(
+            "Strict paper evaluation requires the complete Validation-Seen or "
+            f"Test-Unseen split, not {configured_name!r}"
+        )
+    expected = int(matching_split["expected_episodes"])
+    if len(selected_episodes) != expected:
+        raise ValueError(
+            f"Strict paper evaluation selected {len(selected_episodes)} of {expected} "
+            f"{matching_name} episodes. Use diagnostic mode for scene, difficulty, "
+            "index, stride, trial, or episode-limit subsets."
+        )

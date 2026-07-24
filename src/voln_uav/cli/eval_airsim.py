@@ -45,6 +45,11 @@ def main() -> None:
         action="store_true",
         help="Fail instead of skipping when any requested scene is absent.",
     )
+    parser.add_argument(
+        "--allow-partial-diagnostic",
+        action="store_true",
+        help="Run a clearly labelled diagnostic on an incomplete benchmark release.",
+    )
     parser.add_argument("--preflight", action="store_true", help="Check AirSim dependencies and scene access without loading the model.")
     parser.add_argument("--trials", type=int, help="Number of episodes to run after episode-index/stride filtering.")
     parser.add_argument("--episode-index", type=int, help="First episode index after split/scene/difficulty filtering.")
@@ -75,6 +80,8 @@ def main() -> None:
         cfg["scene_allowlist"] = args.scenes
     if args.strict_scenes:
         cfg["strict_scenes"] = True
+    if args.allow_partial_diagnostic:
+        cfg["strict_paper_protocol"] = False
     if args.controller is not None:
         cfg["controller"] = args.controller
     if args.trials is not None:
@@ -111,8 +118,12 @@ def main() -> None:
 
     if args.preflight:
         from voln_uav.evaluation.airsim_loop import filter_airsim_episodes
-        from voln_uav.evaluation.paper_protocol import select_available_episodes
+        from voln_uav.evaluation.paper_protocol import (
+            require_paper_protocol_ready,
+            select_available_episodes,
+        )
 
+        require_paper_protocol_ready(cfg["benchmark_root"], cfg)
         raw_episodes = read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"])
         _available, coverage = select_available_episodes(raw_episodes, cfg)
         episodes = filter_airsim_episodes(cfg, raw_episodes)

@@ -7,6 +7,7 @@ from typing import Any
 import torch
 
 from voln_uav.common.image import load_image_tensor
+from voln_uav.common.navigation_frames import PROPRIO_SCHEMA, encode_proprioception
 from voln_uav.models.planner import load_planner_state
 from voln_uav.models.planner_factory import build_planner
 from voln_uav.models.semantic_bank import SemanticBank
@@ -44,6 +45,7 @@ class VoLNPolicy:
             "lora_alpha": None,
             "lora_dropout": 0.05,
             "lora_target_modules": None,
+            "proprio_schema": PROPRIO_SCHEMA,
         }
         signature_keys = (
             "planner_variant",
@@ -68,6 +70,7 @@ class VoLNPolicy:
             "horizon",
             "top_k_semantic",
             "memory_len",
+            "proprio_schema",
         )
         mismatches = []
         for key in signature_keys:
@@ -84,6 +87,13 @@ class VoLNPolicy:
             map_location=str(self.device),
         )
         semantic_bank = SemanticBank.from_file(semantic_bank_path, encoder_name=model_cfg["text_encoder"], dim=embed_dim)
+        trained_bank = ckpt.get("meta", {}).get("semantic_bank")
+        current_bank = semantic_bank.signature(model_cfg["text_encoder"])
+        if trained_bank != current_bank:
+            raise ValueError(
+                "Planner checkpoint semantic-bank signature does not match evaluation "
+                "categories/encoder/dimension"
+            )
         self.planner = build_planner(
             model_cfg=model_cfg,
             dino_encoder=dino_encoder,
@@ -122,10 +132,36 @@ class VoLNPolicy:
 
     def prepare_batch(self, state: dict[str, Any], history_states: list[dict[str, Any]], visual_goal: dict[str, Any]) -> dict[str, torch.Tensor]:
         history_images = self._stack_cached_images([s["image"] for s in history_states]).unsqueeze(0)
-        history_proprio = torch.tensor([list(s.get("imu", [])) + list(s.get("odometry", [])) for s in history_states], dtype=torch.float32).unsqueeze(0)
+        history_proprio = torch.tensor(
+            [
+                encode_proprioception(
+                    history_state,
+                    history_states[index - 1] if index > 0 else None,
+                )
+                for index, history_state in enumerate(history_states)
+            ],
+            dtype=torch.float32,
+        ).unsqueeze(0)
         cur_image = self._load_cached_image(state["image"]).unsqueeze(0)
-        goal_images = self._stack_cached_images(list(visual_goal["V_goal"])).unsqueeze(0)
-        proprio = torch.tensor(list(state.get("imu", [])) + list(state.get("odometry", [])), dtype=torch.float32).unsqueeze(0)
+        goal_paths = list(visual_goal["V_goal"])
+        if len(goal_paths) != 3:
+            raise ValueError(f"VoLN paper protocol requires exactly three goal views, got {len(goal_paths)}")
+        goal_images = self._stack_cached_images(goal_paths).unsqueeze(0)
+        previous_state = None
+        if history_states:
+            history_last = history_states[-1]
+            same_state = history_last is state or (
+                history_last.get("image") == state.get("image")
+                and history_last.get("position") == state.get("position")
+            )
+            if same_state and len(history_states) > 1:
+                previous_state = history_states[-2]
+            elif not same_state:
+                previous_state = history_last
+        proprio = torch.tensor(
+            encode_proprioception(state, previous_state),
+            dtype=torch.float32,
+        ).unsqueeze(0)
         return {
             "history_images": history_images.to(self.device),
             "history_proprio": history_proprio.to(self.device),
@@ -152,4 +188,6 @@ class VoLNPolicy:
             "anchor": anchor,
             "stop_prob": stop_prob,
             "semantic_names": out["semantic_names"][0],
+            "waypoint_frame": "body_relative",
+            "proprio_schema": PROPRIO_SCHEMA,
         }

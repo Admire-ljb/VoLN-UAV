@@ -12,9 +12,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from voln_uav.benchmark.splitter import assign_scene_splits
+from voln_uav.benchmark.splitter import (
+    assign_episode_splits_from_manifest,
+    assign_scene_splits,
+    validate_paper_split_episodes,
+)
 from voln_uav.common.geometry import path_length
-from voln_uav.common.io import ensure_dir, write_json, write_jsonl
+from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
+from voln_uav.common.navigation_frames import (
+    DEFAULT_SAMPLE_INTERVAL_SEC,
+    PROPRIO_SCHEMA,
+    encode_proprioception,
+)
 
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
@@ -28,6 +37,16 @@ CAMERA_PRIORITY = (
     "images",
 )
 FRAME_NUMBER_RE = re.compile(r"(\d+)(?!.*\d)")
+DEFAULT_PAPER_SPLIT_PROTOCOL = {
+    "train_episodes": 5047,
+    "validation_seen_episodes": 1082,
+    "test_unseen_episodes": 1081,
+    "train_environments": 12,
+    "validation_seen_environments": 5,
+    "test_unseen_environments": 5,
+    "total_environments": 17,
+    "require_held_out_scene_source": True,
+}
 
 
 @dataclass(frozen=True)
@@ -224,9 +243,24 @@ def _yaw_from_log(log: dict[str, Any] | None) -> float | None:
     return None
 
 
+def _orientation_from_log(log: dict[str, Any] | None) -> list[float] | None:
+    if not log:
+        return None
+    direct = log.get("orientation")
+    state = log.get("state") if isinstance(log.get("state"), dict) else {}
+    sensors_state = log.get("sensors", {}).get("state", {}) if isinstance(log.get("sensors"), dict) else {}
+    orientation = direct or state.get("orientation") or sensors_state.get("orientation")
+    if not isinstance(orientation, list) or len(orientation) != 4:
+        return None
+    return [float(value) for value in orientation]
+
+
 def _timestamp_from_log(log: dict[str, Any] | None) -> float | None:
     if log and "timestamp" in log:
-        return float(log["timestamp"])
+        timestamp = float(log["timestamp"])
+        if abs(timestamp) > 1e12:
+            timestamp /= 1e9
+        return timestamp
     return None
 
 
@@ -275,6 +309,53 @@ def _copy_or_index_image(
     return str(image_path.relative_to(source_root.parent)).replace("\\", "/")
 
 
+def _resample_states(
+    states: list[dict[str, Any]],
+    *,
+    sample_interval_sec: float,
+    timestamp_tolerance_sec: float,
+    strict_timestamps: bool,
+) -> list[dict[str, Any]]:
+    timestamps = [
+        state.get("raw", {}).get("timestamp")
+        if isinstance(state.get("raw"), dict)
+        else None
+        for state in states
+    ]
+    if any(value is None for value in timestamps):
+        if strict_timestamps:
+            raise ValueError("Paper release requires a timestamp for every synchronized RGB/state sample")
+        return states
+    numeric = [float(value) for value in timestamps]
+    if any(numeric[index] <= numeric[index - 1] for index in range(1, len(numeric))):
+        raise ValueError("Trajectory timestamps must be strictly increasing")
+    interval = float(sample_interval_sec)
+    tolerance = float(timestamp_tolerance_sec)
+    if interval <= 0.0 or tolerance < 0.0:
+        raise ValueError("Invalid trajectory sampling interval/tolerance")
+
+    selected: list[dict[str, Any]] = []
+    previous_index = -1
+    target = numeric[0]
+    while target <= numeric[-1] + tolerance:
+        candidates = range(previous_index + 1, len(states))
+        nearest = min(candidates, key=lambda index: abs(numeric[index] - target), default=None)
+        if nearest is None:
+            break
+        error = abs(numeric[nearest] - target)
+        if error > tolerance:
+            if strict_timestamps:
+                raise ValueError(
+                    f"No synchronized sample within {tolerance:.3f}s of target timestamp {target:.6f}"
+                )
+            target += interval
+            continue
+        selected.append(states[nearest])
+        previous_index = nearest
+        target += interval
+    return selected
+
+
 def build_route_from_raw_episode(
     ep: RawEpisode,
     out_root: Path,
@@ -282,6 +363,9 @@ def build_route_from_raw_episode(
     asset_mode: str,
     easy_lt: float,
     normal_lt: float,
+    sample_interval_sec: float = DEFAULT_SAMPLE_INTERVAL_SEC,
+    timestamp_tolerance_sec: float = 0.25,
+    strict_timestamps: bool = True,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     relative_episode = ep.episode_dir.relative_to(ep.source.path)
     trajectory_id = sanitize_id(f"{ep.source.key}_{relative_episode}")
@@ -310,7 +394,6 @@ def build_route_from_raw_episode(
         }
 
     states: list[dict[str, Any]] = []
-    prev_pos: list[float] | None = None
     prev_yaw: float | None = None
 
     skipped_frames = 0
@@ -324,18 +407,7 @@ def build_route_from_raw_episode(
         yaw = _yaw_from_log(log)
         if yaw is None:
             yaw = prev_yaw if prev_yaw is not None else 0.0
-        if prev_pos is None:
-            imu = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        else:
-            dyaw = yaw - (prev_yaw if prev_yaw is not None else yaw)
-            imu = [
-                round(position[0] - prev_pos[0], 6),
-                round(position[1] - prev_pos[1], 6),
-                round(position[2] - prev_pos[2], 6),
-                0.0,
-                0.0,
-                round(dyaw, 6),
-            ]
+        orientation = _orientation_from_log(log)
         image_ref = ""
         if frame_path.suffix.lower() in IMAGE_EXTENSIONS:
             image_ref = _copy_or_index_image(
@@ -352,9 +424,12 @@ def build_route_from_raw_episode(
                 "t": int(frame_idx),
                 "position": [round(float(v), 6) for v in position],
                 "yaw": round(float(yaw), 6),
+                "orientation": (
+                    [round(float(value), 8) for value in orientation]
+                    if orientation is not None
+                    else None
+                ),
                 "image": image_ref,
-                "imu": imu,
-                "odometry": [round(float(position[0]), 6), round(float(position[1]), 6), round(float(position[2]), 6)],
                 "raw": {
                     "frame_index": int(frame_idx),
                     "timestamp": _timestamp_from_log(log),
@@ -363,8 +438,23 @@ def build_route_from_raw_episode(
                 },
             }
         )
-        prev_pos = position
         prev_yaw = yaw
+
+    states = _resample_states(
+        states,
+        sample_interval_sec=sample_interval_sec,
+        timestamp_tolerance_sec=timestamp_tolerance_sec,
+        strict_timestamps=strict_timestamps,
+    )
+    for index, state in enumerate(states):
+        proprio = encode_proprioception(
+            state,
+            states[index - 1] if index > 0 else None,
+            default_interval_sec=sample_interval_sec,
+        )
+        state["imu"] = [round(value, 6) for value in proprio[:6]]
+        state["odometry"] = [round(value, 6) for value in proprio[6:]]
+        state["proprio_schema"] = PROPRIO_SCHEMA
 
     if len(states) < 2:
         return None, {
@@ -390,6 +480,8 @@ def build_route_from_raw_episode(
         "camera": ep.camera_dir.name if ep.camera_dir else None,
         "pose_source": "airsim_log",
         "difficulty_source": "reference_path_length",
+        "sample_interval_sec": float(sample_interval_sec),
+        "proprio_schema": PROPRIO_SCHEMA,
         "states": states,
     }
     index = {
@@ -521,9 +613,12 @@ def prepare_dataset_release(
     env_url: str = "",
     source_roots: Iterable[str | Path] | None = None,
     seed: int = 7,
-    train_ratio: float = 0.8,
-    val_ratio: float = 0.1,
-    test_ratio: float = 0.1,
+    train_ratio: float | None = None,
+    val_ratio: float | None = None,
+    test_ratio: float | None = None,
+    split_manifest: str | Path | None = None,
+    strict_paper_protocol: bool = True,
+    paper_split_protocol: dict[str, Any] | None = None,
     camera: str | None = None,
     asset_mode: str = "index",
     zip_path: str | Path | None = None,
@@ -531,15 +626,37 @@ def prepare_dataset_release(
     max_episodes_per_source: int | None = None,
     easy_lt: float = 300.0,
     normal_lt: float = 450.0,
+    sample_interval_sec: float = DEFAULT_SAMPLE_INTERVAL_SEC,
+    timestamp_tolerance_sec: float = 0.25,
+    strict_timestamps: bool = True,
 ) -> dict[str, Any]:
     if out_root is None:
         raise ValueError("out_root is required")
     if asset_mode not in {"index", "copy"}:
         raise ValueError("asset_mode must be 'index' or 'copy'")
-    ratios = {"train": train_ratio, "val": val_ratio, "test": test_ratio}
-    if abs(sum(ratios.values()) - 1.0) > 1e-6:
-        raise ValueError("train, val, and test ratios must sum to 1.0")
+    ratio_values = (train_ratio, val_ratio, test_ratio)
+    ratios: dict[str, float] | None = None
+    if any(value is not None for value in ratio_values):
+        if strict_paper_protocol:
+            raise ValueError(
+                "Scene-level train/val/test ratios cannot represent the VoLN paper split; "
+                "provide an episode-level split_manifest"
+            )
+        if any(value is None for value in ratio_values):
+            raise ValueError("train_ratio, val_ratio, and test_ratio must be provided together")
+        ratios = {
+            "train": float(train_ratio),
+            "val": float(val_ratio),
+            "test": float(test_ratio),
+        }
+        if abs(sum(ratios.values()) - 1.0) > 1e-6:
+            raise ValueError("train, val, and test ratios must sum to 1.0")
 
+    split_assignments = (
+        read_jsonl(split_manifest)
+        if split_manifest is not None
+        else None
+    )
     out_root = ensure_dir(out_root)
     reset_release_tree(out_root)
     source_root = ensure_dir(out_root / "source")
@@ -572,6 +689,9 @@ def prepare_dataset_release(
             asset_mode=asset_mode,
             easy_lt=easy_lt,
             normal_lt=normal_lt,
+            sample_interval_sec=sample_interval_sec,
+            timestamp_tolerance_sec=timestamp_tolerance_sec,
+            strict_timestamps=strict_timestamps,
         )
         if route is None:
             skipped.append(index)
@@ -579,16 +699,42 @@ def prepare_dataset_release(
         routes.append(route)
         source_index.append(index)
 
+    for route in routes:
+        route["episode_id"] = f"{route['scene_id']}_{route['trajectory_id']}"
+        route["scene_source"] = route["source_root"]
+
     scene_ids = sorted({route["scene_id"] for route in routes})
-    split_map = assign_scene_splits(scene_ids, ratios, seed)
+    if split_assignments is not None:
+        routes = assign_episode_splits_from_manifest(routes, split_assignments)
+        if strict_paper_protocol:
+            validate_paper_split_episodes(
+                routes,
+                paper_split_protocol or DEFAULT_PAPER_SPLIT_PROTOCOL,
+            )
+    else:
+        if strict_paper_protocol:
+            raise ValueError(
+                "strict_paper_protocol requires an episode-level split_manifest"
+            )
+        if ratios is None:
+            raise ValueError(
+                "Diagnostic packaging without split_manifest requires explicit train/val/test ratios"
+            )
+        split_map = assign_scene_splits(scene_ids, ratios, seed)
+        for route in routes:
+            route["split"] = split_map[route["scene_id"]]
 
     scenes = []
     for scene_id in scene_ids:
+        scene_routes = [route for route in routes if route["scene_id"] == scene_id]
+        scene_splits = {str(route["split"]) for route in scene_routes}
         scenes.append(
             {
                 "scene_id": scene_id,
                 "scene_type": infer_scene_type(scene_id),
-                "split": split_map[scene_id],
+                "scene_source": scene_routes[0]["scene_source"],
+                "paper_pool": "test_unseen" if scene_splits == {"test"} else "train",
+                "validation_seen": "val" in scene_splits,
             }
         )
     write_jsonl(scenes, source_root / "scenes.jsonl")
@@ -596,11 +742,10 @@ def prepare_dataset_release(
     episodes = []
     split_items: dict[str, list[dict[str, Any]]] = {"train": [], "val": [], "test": []}
     for route in routes:
-        route["split"] = split_map[route["scene_id"]]
         route_path = (preset_root if route["source"] == "preset" else custom_root) / f"{route['trajectory_id']}.json"
         write_json(route, route_path)
         episode = {
-            "episode_id": f"{route['scene_id']}_{route['trajectory_id']}",
+            "episode_id": route["episode_id"],
             "scene_id": route["scene_id"],
             "trajectory_id": route["trajectory_id"],
             "source": route["source"],
@@ -618,6 +763,11 @@ def prepare_dataset_release(
     write_jsonl(episodes, metadata_root / "episodes.jsonl")
     write_jsonl(source_index, metadata_root / "source_data_index.jsonl")
     write_jsonl(skipped, metadata_root / "skipped.jsonl")
+    if split_assignments is not None:
+        write_jsonl(
+            split_assignments,
+            metadata_root / "paper_episode_splits.jsonl",
+        )
     for split_name, items in split_items.items():
         write_jsonl(items, splits_root / f"{split_name}.jsonl")
 
@@ -626,7 +776,15 @@ def prepare_dataset_release(
         "num_routes": len(routes),
         "num_skipped": len(skipped),
         "asset_mode": asset_mode,
+        "split_mode": "paper_manifest" if split_assignments is not None else "diagnostic_scene_ratios",
+        "split_manifest_file": (
+            "metadata/paper_episode_splits.jsonl"
+            if split_assignments is not None
+            else None
+        ),
         "splits": ratios,
+        "sample_interval_sec": float(sample_interval_sec),
+        "proprio_schema": PROPRIO_SCHEMA,
         "episodes_by_split": _count_by(episodes, "split"),
         "episodes_by_difficulty": _count_by(episodes, "difficulty"),
         "episodes_by_pose_source": _count_by(episodes, "pose_source"),

@@ -8,8 +8,10 @@ dataset:
     Easy: 0.52
     Normal: 0.36
     Hard: 0.12
+  difficulty_mix_tolerance: 0.01
 
 splits:
+  require_held_out_scene_source: true
   train:
     file: train.jsonl
     aliases: []

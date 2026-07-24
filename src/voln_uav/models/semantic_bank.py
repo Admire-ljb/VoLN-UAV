@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -41,3 +42,12 @@ class SemanticBank:
         # flattening category names is only used for logging; not needed in training.
         categories = [self.categories[i] for i in idx[0].tolist()]
         return RetrievalResult(categories=categories, scores=scores, embeddings=embeddings[idx])
+
+    def signature(self, encoder_name: str) -> dict[str, Any]:
+        payload = "\n".join(self.categories).encode("utf-8")
+        return {
+            "categories": list(self.categories),
+            "encoder": str(encoder_name),
+            "dim": int(self.embeddings.shape[-1]),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }

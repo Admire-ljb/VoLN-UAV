@@ -23,9 +23,8 @@ class RandomPolicy:
         self.rng = random.Random(seed)
 
     def act(self, state: dict[str, Any], *_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        base = state["position"]
         pts = []
-        x, y, z = base
+        x, y, z = 0.0, 0.0, 0.0
         for _ in range(self.horizon):
             heading = self.rng.uniform(-3.141592653589793, 3.141592653589793)
             distance = self.rng.uniform(0.0, self.step_scale)
@@ -38,4 +37,5 @@ class RandomPolicy:
             "anchor": torch.tensor(pts[-1], dtype=torch.float32),
             "stop_prob": float(self.rng.random() < self.stop_probability),
             "semantic_names": [],
+            "waypoint_frame": "body_relative",
         }

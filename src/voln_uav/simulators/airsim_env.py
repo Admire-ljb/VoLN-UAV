@@ -9,6 +9,7 @@ from typing import Any
 
 from voln_uav.common.geometry import l2, l2_xy
 from voln_uav.common.io import ensure_dir
+from voln_uav.common.navigation_frames import PROPRIO_SCHEMA, world_vector_to_body
 from voln_uav.simulators.beacon_placement import SIGN_ASSET_BASE, TARGET_TAG, plan_route_beacons, stable_episode_seed
 
 TARGET_ASSET_ALIASES = (TARGET_TAG, "target", "people", "person")
@@ -84,6 +85,8 @@ class AirSimRouteEnv:
         self.client = airsim.MultirotorClient(ip=ip, port=int(port))
         self._beacon_object_cache: list[str] | None = None
         self._active_beacon_names: list[str] = []
+        self._passive_beacon_names: list[str] = []
+        self._passive_scene_id: str | None = None
 
     def connect(self, timeout_sec: float = 60.0) -> None:
         deadline = time.time() + float(timeout_sec)
@@ -103,7 +106,7 @@ class AirSimRouteEnv:
     def close(self) -> None:
         self._set_sim_pause(False)
         try:
-            self.cleanup_beacons()
+            self.cleanup_beacons(all_available=True)
         except Exception:
             pass
         try:
@@ -228,6 +231,12 @@ class AirSimRouteEnv:
         names = [name for name in self._scene_beacon_objects() if name not in used]
         bases = list(TARGET_ASSET_ALIASES) if tag == TARGET_TAG else [SIGN_ASSET_BASE.get(tag, tag)]
         candidates = [name for name in names if any(base.lower() in name.lower() for base in bases)]
+        if not candidates and tag != TARGET_TAG:
+            candidates = [
+                name
+                for name in names
+                if not any(alias.lower() in name.lower() for alias in TARGET_ASSET_ALIASES)
+            ]
         rng.shuffle(candidates)
         return candidates[0] if candidates else None
 
@@ -261,6 +270,9 @@ class AirSimRouteEnv:
         for name in names:
             self._hide_object(name, rng, hidden_z)
         self._active_beacon_names = []
+        if all_available:
+            self._passive_beacon_names = []
+            self._passive_scene_id = None
 
     def place_beacons_for_episode(self, episode: dict[str, Any], config: dict[str, Any] | None = None, seed: int = 0) -> list[dict[str, Any]]:
         cfg = config or {}
@@ -270,13 +282,34 @@ class AirSimRouteEnv:
         rng_seed = stable_episode_seed(int(cfg.get("random_seed", seed)), episode_id)
         rng = random.Random(rng_seed)
         hidden_z = float(cfg.get("hidden_z", -500.0))
-        if bool(cfg.get("hide_all_available", True)):
+        scene_id = str(episode.get("scene_id", "scene"))
+        if self._passive_scene_id != scene_id:
             self.cleanup_beacons(all_available=True, seed=rng_seed, hidden_z=hidden_z)
         else:
             self.cleanup_beacons(all_available=False, seed=rng_seed, hidden_z=hidden_z)
 
-        used: set[str] = set()
+        used: set[str] = set(self._passive_beacon_names)
         materialized: list[dict[str, Any]] = []
+        if self._passive_scene_id != scene_id:
+            for planned in episode.get("background_beacons", []) or []:
+                item = {**planned, "kind": "passive_beacon"}
+                obj_name = self._pick_beacon_object(
+                    str(item.get("semantic_type", "road-sign")),
+                    used,
+                    rng,
+                )
+                item["object_name"] = obj_name
+                item["placed"] = False
+                if obj_name is not None and item.get("position") is not None:
+                    try:
+                        self.client.simSetObjectPose(obj_name, self._pose_from_plan(item))
+                        used.add(obj_name)
+                        self._passive_beacon_names.append(obj_name)
+                        item["placed"] = True
+                    except Exception as exc:
+                        item["error"] = repr(exc)
+                materialized.append(item)
+            self._passive_scene_id = scene_id
         for planned in plan_route_beacons(episode, cfg, base_seed=seed):
             item = dict(planned)
             obj_name = self._pick_beacon_object(str(item["tag"]), used, rng)
@@ -322,21 +355,34 @@ class AirSimRouteEnv:
             delta = [position[i] - previous_position[i] for i in range(3)]
         lin = kin.linear_velocity
         ang = kin.angular_velocity
+        orientation = [
+            float(ori.x_val),
+            float(ori.y_val),
+            float(ori.z_val),
+            float(ori.w_val),
+        ]
+        body_linear_velocity = world_vector_to_body(
+            [float(lin.x_val), float(lin.y_val), float(lin.z_val)],
+            yaw,
+            orientation,
+        )
+        body_odometry = world_vector_to_body(delta, yaw, orientation)
         collision_info = self.client.simGetCollisionInfo()
         collision = bool(getattr(collision_info, "has_collided", False))
         item = {
             "position": position,
             "yaw": yaw,
+            "orientation": orientation,
             "image": image,
             "imu": [
-                float(getattr(lin, "x_val", delta[0])),
-                float(getattr(lin, "y_val", delta[1])),
-                float(getattr(lin, "z_val", delta[2])),
+                *body_linear_velocity,
                 float(getattr(ang, "x_val", 0.0)),
                 float(getattr(ang, "y_val", 0.0)),
                 float(getattr(ang, "z_val", 0.0)),
             ],
-            "odometry": position,
+            "odometry": body_odometry,
+            "proprio_schema": PROPRIO_SCHEMA,
+            "raw": {"timestamp": float(getattr(state, "timestamp", 0.0))},
         }
         return AirSimStep(state=item, position=position, collision=collision)
 

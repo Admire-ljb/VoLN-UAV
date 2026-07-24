@@ -134,7 +134,7 @@ class BaselineVisionPlannerBase(nn.Module):
 
 
 class Seq2SeqPlanner(BaselineVisionPlannerBase):
-    """GRU encoder-decoder baseline over visual history and visual goal."""
+    """GRU encoder-decoder baseline over visual history, goal, and semantics."""
 
     def __init__(
         self,
@@ -153,7 +153,7 @@ class Seq2SeqPlanner(BaselineVisionPlannerBase):
     ) -> None:
         super().__init__(dino_encoder, adapter, semantic_bank, embed_dim, hidden_dim, horizon, top_k_semantic, cache_image_embeddings, proprio_dim)
         self.history_proj = nn.Linear(embed_dim + proprio_dim, hidden_dim)
-        self.context_proj = nn.Linear(embed_dim * 2 + proprio_dim, hidden_dim)
+        self.context_proj = nn.Linear(embed_dim * 3 + proprio_dim, hidden_dim)
         self.encoder = nn.GRU(hidden_dim, hidden_dim, num_layers=max(int(num_layers), 1), batch_first=True)
         self.decoder = nn.GRUCell(hidden_dim, hidden_dim)
         self.step_embed = nn.Embedding(horizon, hidden_dim)
@@ -166,7 +166,13 @@ class Seq2SeqPlanner(BaselineVisionPlannerBase):
         hist_inputs = torch.cat([emb["history_img_emb"], batch["history_proprio"]], dim=-1)
         hist_tokens = self.history_proj(hist_inputs)
         _encoded, h = self.encoder(hist_tokens)
-        context = self.context_proj(torch.cat([emb["current_emb"], emb["goal_emb"], batch["proprio"]], dim=-1))
+        semantic_summary = emb["semantic_embeds"].mean(dim=1)
+        context = self.context_proj(
+            torch.cat(
+                [emb["current_emb"], emb["goal_emb"], semantic_summary, batch["proprio"]],
+                dim=-1,
+            )
+        )
         state = torch.tanh(h[-1] + context)
         waypoints = []
         for step in range(self.horizon):

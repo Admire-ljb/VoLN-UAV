@@ -26,9 +26,20 @@ def main() -> None:
     parser.add_argument("--dataset-url", default=DEFAULT_DATASET_URL)
     parser.add_argument("--env-url", default=DEFAULT_ENV_URL)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--split-manifest",
+        help="Episode-level JSONL manifest defining Train, Validation-Seen, and Test-Unseen.",
+    )
+    parser.add_argument(
+        "--diagnostic-scene-ratios",
+        action="store_true",
+        help="Build a non-paper diagnostic release using scene-level ratios.",
+    )
     parser.add_argument("--train-ratio", type=float, default=0.8)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--test-ratio", type=float, default=0.1)
+    parser.add_argument("--sample-interval-sec", type=float, default=2.0)
+    parser.add_argument("--timestamp-tolerance-sec", type=float, default=0.25)
     parser.add_argument("--camera", default=None, help="Preferred camera directory name, e.g. FrontCamera.")
     parser.add_argument(
         "--asset-mode",
@@ -53,6 +64,8 @@ def main() -> None:
         source_roots = [Path(path) for path in legacy_roots if path]
     else:
         parser.error("provide at least one --source-root")
+    if not args.split_manifest and not args.diagnostic_scene_ratios:
+        parser.error("provide --split-manifest for the paper protocol")
 
     summary = prepare_dataset_release(
         source_roots=source_roots,
@@ -60,14 +73,19 @@ def main() -> None:
         dataset_url=args.dataset_url,
         env_url=args.env_url,
         seed=args.seed,
-        train_ratio=args.train_ratio,
-        val_ratio=args.val_ratio,
-        test_ratio=args.test_ratio,
+        train_ratio=args.train_ratio if args.diagnostic_scene_ratios else None,
+        val_ratio=args.val_ratio if args.diagnostic_scene_ratios else None,
+        test_ratio=args.test_ratio if args.diagnostic_scene_ratios else None,
+        split_manifest=Path(args.split_manifest) if args.split_manifest else None,
+        strict_paper_protocol=not args.diagnostic_scene_ratios,
         camera=args.camera,
         asset_mode=args.asset_mode,
         zip_path=Path(args.zip_path) if args.zip_path else None,
         write_zip=not args.no_zip,
         max_episodes_per_source=args.max_episodes_per_source,
+        sample_interval_sec=args.sample_interval_sec,
+        timestamp_tolerance_sec=args.timestamp_tolerance_sec,
+        strict_timestamps=not args.diagnostic_scene_ratios,
     )
     print(json.dumps(summary, indent=2))
 

@@ -24,8 +24,17 @@ def test_voln_training_config_matches_paper_architecture():
     assert planner["model"]["planner_backbone"] == "lmsys/vicuna-7b-v1.5"
     assert planner["model"]["lora_rank"] == 16
     assert planner["model"]["horizon"] == 8
+    assert planner["model"]["proprio_schema"] == "body_linear_angular_relative_v1"
     assert "anchor_weight" not in planner["loss"]
     assert planner["success_radius"] == 4.0
+
+
+def test_benchmark_config_matches_beacon_count_protocol():
+    benchmark = _load("benchmark_dataset_release.yaml")
+
+    assert benchmark["beacons"]["task_beacons_min_per_route"] == 3
+    assert benchmark["beacons"]["task_beacons_max_per_route"] == 5
+    assert benchmark["beacons"]["background_per_scene"] == 150
 
 
 def test_release_evaluation_configs_share_paper_protocol():
@@ -45,12 +54,14 @@ def test_release_evaluation_configs_share_paper_protocol():
         assert config["success_radius"] == 4.0, name
         assert config["stop_probability"] is None, name
         assert config["paper_protocol"] == "paper_protocol.yaml", name
+        assert config["strict_paper_protocol"] is True, name
         assert config["strict_scenes"] is False, name
         assert config["planner_ckpt"].endswith("planner_best.pt"), name
         assert config["model"]["dino_backbone"] == DINO_V3, name
         assert config["model"]["clip_image_encoder"] == CLIP_B16, name
         assert config["model"]["text_encoder"] == CLIP_B16, name
         assert config["model"]["horizon"] == 8, name
+        assert config["model"]["proprio_schema"] == "body_linear_angular_relative_v1", name
 
         if name.startswith("eval_airsim"):
             assert config["termination_mode"] == "paper", name

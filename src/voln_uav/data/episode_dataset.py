@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 
 from voln_uav.common.image import load_image_tensor, stack_images
 from voln_uav.common.io import read_jsonl
+from voln_uav.common.navigation_frames import encode_proprioception, world_point_to_body
 
 
 class _BenchmarkBase(Dataset):
@@ -66,8 +67,31 @@ class PlannerDataset(_BenchmarkBase):
         history_indices = list(range(max(0, step_idx - self.memory_len + 1), step_idx + 1))
         while len(history_indices) < self.memory_len:
             history_indices.insert(0, history_indices[0])
-        hist = [list(states[i].get("imu", [])) + list(states[i].get("odometry", [])) for i in history_indices]
+        hist = [
+            encode_proprioception(states[index], states[index - 1] if index > 0 else None)
+            for index in history_indices
+        ]
         return torch.tensor(hist, dtype=torch.float32)
+
+    @staticmethod
+    def _relative_waypoints(
+        episode: dict[str, Any],
+        step_idx: int,
+        horizon: int,
+    ) -> list[list[float]]:
+        states = episode["states"]
+        current = states[step_idx]
+        origin = current["position"]
+        yaw = float(current.get("yaw", 0.0))
+        return [
+            world_point_to_body(
+                states[min(step_idx + offset, len(states) - 1)]["position"],
+                origin,
+                yaw,
+                current.get("orientation"),
+            )
+            for offset in range(1, horizon + 1)
+        ]
 
     def _lookup_embedding(self, path: Path) -> torch.Tensor:
         if self.image_embeddings is None:
@@ -106,7 +130,14 @@ class PlannerDataset(_BenchmarkBase):
         cur_path = self._resolve_path(record["image"])
         history_paths = self._history_paths(episode, step_idx)
         goal_paths = [self._resolve_path(p) for p in record["visual_goal"]["V_goal"]]
+        if len(goal_paths) != 3:
+            raise ValueError(
+                f"VoLN paper protocol requires exactly three terminal goal views; "
+                f"record {record['record_id']} has {len(goal_paths)}"
+            )
         history_proprio = self._history_proprio(episode, step_idx)
+        horizon = len(record["future_waypoints"])
+        future_waypoints = self._relative_waypoints(episode, step_idx, horizon)
         item = {
             "record_id": record["record_id"],
             "episode_id": record["episode_id"],
@@ -114,12 +145,23 @@ class PlannerDataset(_BenchmarkBase):
             "image_path": str(cur_path),
             "history_image_paths": [str(p) for p in history_paths],
             "history_proprio": history_proprio,
-            "proprio": torch.tensor(record["proprio"], dtype=torch.float32),
+            "proprio": torch.tensor(
+                encode_proprioception(
+                    episode["states"][step_idx],
+                    episode["states"][step_idx - 1] if step_idx > 0 else None,
+                ),
+                dtype=torch.float32,
+            ),
             "goal_image_paths": [str(p) for p in goal_paths],
-            "future_waypoints": torch.tensor(record["future_waypoints"], dtype=torch.float32),
-            "anchor_waypoint": torch.tensor(record["anchor_waypoint"], dtype=torch.float32),
+            "future_waypoints": torch.tensor(future_waypoints, dtype=torch.float32),
+            "anchor_waypoint": torch.tensor(future_waypoints[-1], dtype=torch.float32),
             "stop": torch.tensor(float(record["stop"]), dtype=torch.float32),
-            "shortest_path_length": torch.tensor(float(record.get("shortest_path_length", record["path_length"])), dtype=torch.float32),
+            "shortest_path_length": torch.tensor(
+                float(record["shortest_path_length"])
+                if record.get("shortest_path_length") is not None
+                else float("nan"),
+                dtype=torch.float32,
+            ),
         }
         if self.image_embeddings is None:
             item.update(

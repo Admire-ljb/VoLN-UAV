@@ -11,9 +11,21 @@ from typing import Any
 
 from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
+from voln_uav.common.navigation_frames import body_point_to_world
 from voln_uav.baselines.random_policy import RandomPolicy
-from voln_uav.evaluation.metrics import METRIC_KEYS, aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
-from voln_uav.evaluation.paper_protocol import select_available_episodes
+from voln_uav.evaluation.metrics import (
+    METRIC_KEYS,
+    aggregate_by_difficulty,
+    aggregate_metrics,
+    reference_travel_time,
+    summarize_episode,
+    validated_shortest_path_length,
+)
+from voln_uav.evaluation.paper_protocol import (
+    require_full_paper_split_selection,
+    require_paper_protocol_ready,
+    select_available_episodes,
+)
 from voln_uav.evaluation.termination import StationaryDetector
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.airsim_env import AirSimRouteEnv
@@ -157,10 +169,16 @@ class AirSimClosedLoopEvaluator:
         self.device = device
         self.benchmark_root = Path(config["benchmark_root"])
         self.work_dir = ensure_dir(config["work_dir"])
+        self.protocol_report = require_paper_protocol_ready(self.benchmark_root, config)
         raw_episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
         _available, self.scene_coverage = select_available_episodes(raw_episodes, config)
         self.episodes = filter_airsim_episodes(config, raw_episodes)
         self.scene_coverage["selected_episodes_after_filters"] = len(self.episodes)
+        require_full_paper_split_selection(
+            config,
+            self.protocol_report,
+            self.episodes,
+        )
         if self.episodes:
             raise_for_airsim_readiness(config, self.episodes)
         self.controller = str(config.get("controller", "policy")).lower()
@@ -212,7 +230,11 @@ class AirSimClosedLoopEvaluator:
         p95_idx = min(int(0.95 * max(len(sorted_ct) - 1, 0)), max(len(sorted_ct) - 1, 0))
         return {
             **agg,
-            "status": "complete",
+            "status": (
+                "complete"
+                if bool(self.cfg.get("strict_paper_protocol", False))
+                else "diagnostic_partial"
+            ),
             "episodes": len(details),
             "total_episodes": len(self.episodes),
             "CT_mean": sum(cycle_times) / max(len(cycle_times), 1),
@@ -413,21 +435,43 @@ class AirSimClosedLoopEvaluator:
             if self.controller == "reference":
                 reference_at_goal = reference_idx >= len(episode["states"]) - 1 and l2(obs.position, episode["states"][-1]["position"]) <= success_radius
                 action = {"stop_prob": 1.0 if reference_at_goal else 0.0, "controller": "reference"}
+                body_waypoint_segment: list[list[float]] = []
                 waypoint_segment = [reference_next]
                 invalid = False
             elif self.controller == "random":
                 assert random_policy is not None
                 action = random_policy.act(obs.state)
-                waypoint_segment = action["waypoints"].detach().cpu().tolist()
-                invalid = not waypoint_segment or any(len(point) < 3 for point in waypoint_segment)
+                body_waypoint_segment = action["waypoints"].detach().cpu().tolist()
+                invalid = not body_waypoint_segment or any(len(point) < 3 for point in body_waypoint_segment)
+                waypoint_segment = [
+                    body_point_to_world(
+                        point,
+                        obs.position,
+                        float(obs.state.get("yaw", 0.0)),
+                        obs.state.get("orientation"),
+                    )
+                    for point in body_waypoint_segment
+                ]
             else:
                 try:
                     assert self.policy is not None
                     action = self.policy.act(obs.state, history_states, episode["visual_goal"])
-                    waypoint_segment = action["waypoints"].detach().cpu().tolist()
-                    invalid = not waypoint_segment or any(len(point) < 3 for point in waypoint_segment)
+                    if action.get("waypoint_frame") != "body_relative":
+                        raise ValueError("Learned policy did not declare body-relative waypoints")
+                    body_waypoint_segment = action["waypoints"].detach().cpu().tolist()
+                    invalid = not body_waypoint_segment or any(len(point) < 3 for point in body_waypoint_segment)
+                    waypoint_segment = [
+                        body_point_to_world(
+                            point,
+                            obs.position,
+                            float(obs.state.get("yaw", 0.0)),
+                            obs.state.get("orientation"),
+                        )
+                        for point in body_waypoint_segment
+                    ]
                 except Exception as exc:
                     action = {"error": repr(exc), "stop_prob": 0.0, "controller": "policy_error_hold"}
+                    body_waypoint_segment = []
                     waypoint_segment = [obs.position]
                     invalid = True
             waypoint = waypoint_segment[-1]
@@ -444,6 +488,7 @@ class AirSimClosedLoopEvaluator:
                         "position": obs.position,
                         "waypoint": [float(v) for v in obs.position[:3]],
                         "requested_waypoints": [[float(v) for v in point[:3]] for point in waypoint_segment],
+                        "requested_body_waypoints": [[float(v) for v in point[:3]] for point in body_waypoint_segment],
                         "executed_waypoint": [float(v) for v in obs.position[:3]],
                         "reference_next": reference_next,
                         "controller": str(action.get("controller", self.controller)),
@@ -490,6 +535,7 @@ class AirSimClosedLoopEvaluator:
                     "position": obs.position,
                     "waypoint": [float(v) for v in waypoint[:3]],
                     "requested_waypoints": [[float(v) for v in point[:3]] for point in waypoint_segment],
+                    "requested_body_waypoints": [[float(v) for v in point[:3]] for point in body_waypoint_segment],
                     "executed_waypoints": [[float(v) for v in item["position_after"][:3]] for item in movement_steps],
                     "segment_movements": movement_steps,
                     "executed_waypoint": [float(v) for v in movement.get("executed_waypoint", waypoint)[:3]],
@@ -533,7 +579,7 @@ class AirSimClosedLoopEvaluator:
             ref_path=ref_path,
             goal=episode["states"][-1]["position"],
             success_radius=success_radius,
-            shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
+            shortest_path_length=validated_shortest_path_length(episode),
             stopped=policy_stopped,
         )
         trajectory_path = self.work_dir / "trajectories" / f"{episode_id}.json"

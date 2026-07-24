@@ -5,7 +5,8 @@ from typing import Any
 
 import torch
 
-from voln_uav.common.geometry import l2, l2_xy
+from voln_uav.common.geometry import l2
+from voln_uav.common.navigation_frames import body_point_to_world, world_point_to_body
 
 
 @dataclass
@@ -45,14 +46,24 @@ class RouteReplayEnv:
         return hist
 
     def expert_waypoints(self, horizon: int) -> torch.Tensor:
+        current = self.current_state()
+        origin = current["position"]
+        yaw = float(current.get("yaw", 0.0))
         pts = []
         for off in range(1, horizon + 1):
             idx = min(self.current_idx + off, len(self.states) - 1)
-            pts.append(self.states[idx]["position"])
+            pts.append(
+                world_point_to_body(
+                    self.states[idx]["position"],
+                    origin,
+                    yaw,
+                    current.get("orientation"),
+                )
+            )
         return torch.tensor(pts, dtype=torch.float32)
 
     def _oracle_success(self) -> bool:
-        return any(l2_xy(self.states[idx]["position"], self.goal) <= self.success_radius for idx in self.visited_indices)
+        return any(l2(self.states[idx]["position"], self.goal) <= self.success_radius for idx in self.visited_indices)
 
     def step(self, action_waypoints: torch.Tensor | None) -> StepResult:
         if self.done:
@@ -63,7 +74,12 @@ class RouteReplayEnv:
             self.collisions += 1
             next_idx = self.current_idx
         else:
-            target = action_waypoints[0].detach().cpu().tolist()
+            target = body_point_to_world(
+                action_waypoints[0].detach().cpu().tolist(),
+                self.current_state()["position"],
+                float(self.current_state().get("yaw", 0.0)),
+                self.current_state().get("orientation"),
+            )
             future_candidates = list(range(self.current_idx + 1, min(self.current_idx + 6, len(self.states))))
             if not future_candidates:
                 future_candidates = [self.current_idx]
@@ -79,7 +95,7 @@ class RouteReplayEnv:
         self.steps_taken += 1
         self.visited_indices.append(self.current_idx)
         state = self.current_state()
-        final_dist = l2_xy(state["position"], self.goal)
+        final_dist = l2(state["position"], self.goal)
         success = final_dist <= self.success_radius
         timeout = self.steps_taken >= self.max_steps or self.current_idx >= len(self.states) - 1
         self.done = success or timeout

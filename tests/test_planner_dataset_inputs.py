@@ -25,6 +25,7 @@ def test_planner_dataset_does_not_expose_subgoal_images(tmp_path):
             {
                 "image": image_paths[i],
                 "position": [float(i), 0.0, 0.0],
+                "yaw": 0.0,
                 "imu": [0.0] * 6,
                 "odometry": [float(i), 0.0, 0.0],
             }
@@ -38,7 +39,7 @@ def test_planner_dataset_does_not_expose_subgoal_images(tmp_path):
         "image": image_paths[2],
         "proprio": [0.0] * 9,
         "visual_goal": {
-            "V_goal": [image_paths[4], image_paths[5]],
+            "V_goal": [image_paths[3], image_paths[4], image_paths[5]],
             "V_sub": [image_paths[1], image_paths[3]],
         },
         "future_waypoints": [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
@@ -57,5 +58,6 @@ def test_planner_dataset_does_not_expose_subgoal_images(tmp_path):
     assert "subgoal_image_embeddings" not in item
     assert item["image"].shape == (3, 16, 16)
     assert item["history_images"].shape == (3, 3, 16, 16)
-    assert item["goal_images"].shape == (2, 3, 16, 16)
+    assert item["goal_images"].shape == (3, 3, 16, 16)
     assert item["future_waypoints"].shape == (2, 3)
+    assert item["future_waypoints"].tolist() == [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]

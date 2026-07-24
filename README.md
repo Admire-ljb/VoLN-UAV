@@ -22,7 +22,7 @@ The repository covers:
 
 - VoLN-MLLM adapter and planner training;
 - VoLN-adapted Seq2Seq-VG, CMA-VG, and LAG-VG baselines;
-- paper-protocol offline and AirSim closed-loop evaluation;
+- AirSim closed-loop paper evaluation and offline route-replay diagnostics;
 - the No-Align, No-LoRA, and CLIP-Input ablations;
 - metric reporting for NE, SR, OSR, nDTW, SPL, CT, and EER.
 
@@ -53,13 +53,13 @@ Difficulty is defined by reference path length:
 VoLN-MLLM has two stages:
 
 1. **Visual-semantic alignment.** A lightweight adapter maps frozen DINOv3 ViT-B/16 features into the frozen CLIP ViT-B/16 image-embedding space using cosine distillation.
-2. **Trajectory planning.** A frozen Vicuna-7B-v1.5 backbone jointly encodes aligned observation history, goal views, proprioception, and top-8 category tokens retrieved from the fixed semantic bank. Rank-16 LoRA modules adapt its attention and feed-forward projections; learned heads predict eight 3D waypoints and a stop signal.
+2. **Trajectory planning.** A frozen Vicuna-7B-v1.5 backbone jointly encodes aligned observation history, three terminal goal views, proprioception, and top-\(k\) category tokens retrieved from the fixed semantic bank. The released configuration uses \(k=8\). Rank-16 LoRA modules adapt its attention and feed-forward projections; learned heads predict eight body-frame relative 3D waypoints and a stop signal.
 
 ### Evaluation rules
 
 The trained baselines are visual-goal adaptations of instruction-following navigation models. All methods receive the same VoLN observations and share waypoint supervision, action interface, stopping rule, and evaluation protocol.
 
-The paper protocol uses at most 128 decisions per episode and a 4 m three-dimensional goal region. SR and SPL require the policy to issue an explicit stop inside that region; OSR records whether the executed trajectory enters it at any time. The stop threshold is calibrated on Validation-Seen and stored in `planner_best.pt`.
+The policy receives onboard RGB and deployable body-frame proprioception; world-frame poses remain supervision/evaluation metadata. Training samples use the final three consecutive RGB frames as the visual goal and body-frame relative waypoint targets. The paper protocol uses at most 128 decisions per episode and a 4 m three-dimensional goal region. SR and SPL require the policy to issue an explicit stop inside that region; OSR records whether the executed trajectory enters it at any time. The stop threshold is calibrated on Validation-Seen and stored in `planner_best.pt`.
 
 ### Configuration index
 
@@ -67,7 +67,7 @@ The paper protocol uses at most 128 decisions per episode and a 4 m three-dimens
 |---|---|
 | Adapter training | `configs/train_adapter_dataset_release.yaml` |
 | Planner training | `configs/train_planner_dataset_release.yaml` |
-| Offline evaluation | `configs/eval_offline_dataset_release.yaml` |
+| Offline route-replay diagnostic | `configs/eval_offline_dataset_release.yaml` |
 | AirSim evaluation | `configs/eval_airsim_dataset_release.yaml` |
 | Paper ablations | `scripts/run_paper_ablations.py` |
 | Paper evaluation suite | `scripts/run_paper_evaluation.py` |
@@ -105,7 +105,7 @@ absent optional environments such as Campus, Park, Tunnel, and Ruins. Missing
 environments are skipped; they are not converted into zero-valued episodes.
 Add `--strict` when a complete paper-scale release is required.
 
-Set <code>source_root</code> and <code>output_root</code> in <code>configs/benchmark_dataset_release.yaml</code>, then build the benchmark:
+Set <code>source_root</code>, <code>output_root</code>, and the episode-level <code>split_manifest</code> in <code>configs/benchmark_dataset_release.yaml</code>. The split manifest assigns each episode to Train, Validation-Seen, or Test-Unseen and stores shortest-path provenance for SPL. Then build the benchmark:
 
 ~~~bash
 python -m voln_uav.cli.build_benchmark --config configs/benchmark_dataset_release.yaml
@@ -122,7 +122,7 @@ python scripts/run_dataset_release_pipeline.py --device cuda
 Run selected stages when resuming or debugging:
 
 ~~~bash
-python scripts/run_dataset_release_pipeline.py --stages build train-adapter train-planner offline-eval --device cuda
+python scripts/run_dataset_release_pipeline.py --stages build train-adapter train-planner --device cuda
 ~~~
 
 The VoLN-adapted baselines have separate training entry points and checkpoints. See [baseline documentation](docs/voln_adapted_baselines.md) for Seq2Seq-VG, CMA-VG, and LAG-VG.
@@ -130,18 +130,20 @@ The VoLN-adapted baselines have separate training entry points and checkpoints. 
 Run the three manuscript ablations (`No-Align`, `No-LoRA`, and `CLIP-Input`) with their independent checkpoints:
 
 ~~~bash
-python scripts/run_paper_ablations.py --stages train offline --device cuda
+python scripts/run_paper_ablations.py --stages train airsim --device cuda
 ~~~
 
 `No-Align` saves an untrained dimensional adapter without CLIP-teacher supervision, `No-LoRA` freezes Vicuna without inserting LoRA branches, and `CLIP-Input` feeds frozen CLIP ViT-B/16 image features directly to the planner.
 
 ## Evaluation
 
-Offline evaluation:
+Offline route-replay diagnostic:
 
 ~~~bash
 python -m voln_uav.cli.eval_offline --config configs/eval_offline_dataset_release.yaml --device cuda
 ~~~
+
+This diagnostic replays observations from the recorded route. Manuscript tables use the AirSim closed-loop backend below.
 
 AirSim preflight and closed-loop evaluation:
 
@@ -154,16 +156,25 @@ Run all manuscript methods on Validation-Seen and Test-Unseen:
 
 ~~~bash
 python scripts/run_paper_evaluation.py \
-  --backend airsim \
   --methods random seq2seq_vg cma lag voln_mllm \
   --splits validation_seen test_unseen \
   --device cuda
 ~~~
 
-To evaluate selected environments from a partial release, append
-`--scenes Campus Park Tunnel Ruins`. Each run writes `scene_coverage.json`.
-Unavailable requested scenes produce a `skipped_no_available_episodes` result,
-not a fabricated failure. Add `--strict-scenes` to reject a missing scene.
+The manuscript launcher verifies the complete split before evaluation. For a
+selected-scene diagnostic on a partial release, run:
+
+~~~bash
+python -m voln_uav.cli.eval_airsim \
+  --config configs/eval_airsim_dataset_release.yaml \
+  --split test_unseen \
+  --scenes Campus Park Tunnel Ruins \
+  --allow-partial-diagnostic \
+  --device cuda
+~~~
+
+Each run writes `scene_coverage.json`. Add `--strict-scenes` to reject a missing
+requested scene.
 
 On Windows, the reference and random online baselines can be evaluated with the same launcher:
 
@@ -179,9 +190,8 @@ Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with th
 ## Experimental Results and Consistency Checks
 
 `configs/experiment_results.yaml` is the machine-readable source for the numbers
-reported in the paper. It is explicitly labelled
-`arxiv_reported`; these values are never used as substitutes for absent
-evaluation logs.
+reported in the paper. Generated closed-loop logs are compared with this table
+and summarized separately in `run_coverage.json`.
 
 The committed result package is not limited to YAML. It includes normalized
 JSON, long-form and wide-form CSV files, rendered Markdown tables, PNG/PDF

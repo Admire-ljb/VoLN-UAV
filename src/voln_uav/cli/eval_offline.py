@@ -38,6 +38,11 @@ def main() -> None:
         action="store_true",
         help="Fail instead of skipping when any requested scene is absent.",
     )
+    parser.add_argument(
+        "--allow-partial-diagnostic",
+        action="store_true",
+        help="Run route-replay diagnostics on an incomplete benchmark release.",
+    )
     parser.add_argument("--work-dir", help="Override the output directory for metrics and trajectories.")
     args = parser.parse_args()
     cfg = load_config(args.config)
@@ -49,6 +54,8 @@ def main() -> None:
         cfg["scene_allowlist"] = args.scenes
     if args.strict_scenes:
         cfg["strict_scenes"] = True
+    if args.allow_partial_diagnostic:
+        cfg["strict_paper_protocol"] = False
     if args.work_dir is not None:
         cfg["work_dir"] = args.work_dir
     set_seed(int(cfg["seed"]))

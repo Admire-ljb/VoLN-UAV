@@ -16,14 +16,14 @@ This repository includes three optional learned baselines adapted from common VL
 
 All three baselines use the same paper action interface as the main planner:
 
-- eight three-dimensional waypoints
+- eight body-frame relative three-dimensional waypoints
 - one stop logit
 
 ## Methods
 
 ### Seq2Seq-VG
 
-`Seq2Seq-VG` uses a GRU encoder over the visual history and proprioception, then a recurrent decoder to generate future waypoints conditioned on the current image, goal image, and current proprioception.
+`Seq2Seq-VG` uses a GRU encoder over visual-proprioceptive history and a recurrent decoder conditioned on the current image, three goal views, retrieved semantic tokens, and current proprioception.
 
 ### CMA-VG
 

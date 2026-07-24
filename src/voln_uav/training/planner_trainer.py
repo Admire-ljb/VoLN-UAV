@@ -10,6 +10,7 @@ from tqdm import tqdm
 from voln_uav.common.geometry import l2
 from voln_uav.common.image import load_image_tensor
 from voln_uav.common.io import ensure_dir, read_json, write_json
+from voln_uav.common.navigation_frames import PROPRIO_SCHEMA
 from voln_uav.data.collate import default_collate_dict
 from voln_uav.data.episode_dataset import PlannerDataset
 from voln_uav.models.planner import load_planner_state, save_planner
@@ -74,6 +75,7 @@ class PlannerTrainer:
             image_size=int(model_cfg.get("image_size", 64)),
         )
         semantic_bank = SemanticBank.from_file(config["benchmark_root"] + "/" + config["semantic_bank"], encoder_name=model_cfg["text_encoder"], dim=self.embed_dim)
+        self.semantic_bank_signature = semantic_bank.signature(model_cfg["text_encoder"])
         self.planner = build_planner(
             model_cfg=model_cfg,
             dino_encoder=dino_encoder,
@@ -249,6 +251,27 @@ class PlannerTrainer:
         except (KeyError, TypeError, ValueError):
             return float("inf")
 
+    def _validate_checkpoint_compatibility(
+        self,
+        checkpoint: dict[str, Any],
+        path: Path,
+    ) -> None:
+        checkpoint_model = checkpoint.get("meta", {}).get("config", {}).get("model", {})
+        checkpoint_schema = checkpoint_model.get("proprio_schema")
+        configured_schema = self.cfg.get("model", {}).get(
+            "proprio_schema",
+            PROPRIO_SCHEMA,
+        )
+        if checkpoint_schema != configured_schema:
+            raise ValueError(
+                f"Cannot use {path} with a different proprioception schema; "
+                "retrain from a fresh checkpoint"
+            )
+        if checkpoint.get("meta", {}).get("semantic_bank") != self.semantic_bank_signature:
+            raise ValueError(
+                f"Cannot use {path} with a different semantic-bank signature"
+            )
+
     @torch.no_grad()
     def _calibrate_stop_threshold(self) -> tuple[float, dict[str, float]]:
         self.planner.eval()
@@ -282,13 +305,17 @@ class PlannerTrainer:
 
     def _maybe_resume(self, last_path: Path, best_path: Path) -> tuple[int, list[dict[str, Any]], float]:
         history: list[dict[str, Any]] = []
-        best_val = self._load_meta_val(best_path)
         if not bool(self.cfg.get("resume", True)) or not last_path.exists():
-            return 1, history, best_val
+            return 1, history, float("inf")
 
         checkpoint = torch.load(last_path, map_location=self.device)
+        self._validate_checkpoint_compatibility(checkpoint, last_path)
         load_planner_state(self.planner, checkpoint)
         meta = checkpoint.get("meta", {})
+        if best_path.exists():
+            best_checkpoint = torch.load(best_path, map_location="cpu")
+            self._validate_checkpoint_compatibility(best_checkpoint, best_path)
+        best_val = self._load_meta_val(best_path)
         start_epoch = int(meta.get("epoch", 0)) + 1
         history = self._load_history()
         try:
@@ -309,10 +336,17 @@ class PlannerTrainer:
             val_metrics = self._run_epoch(self.val_loader, train=False)
             entry = {"epoch": epoch, "train": train_metrics, "val": val_metrics}
             history.append(entry)
-            save_planner(self.planner, last_path, meta={"epoch": epoch, "config": self.cfg, "planner_variant": normalize_planner_variant(self.cfg["model"]), "val_total": val_metrics["total"]})
+            checkpoint_meta = {
+                "epoch": epoch,
+                "config": self.cfg,
+                "planner_variant": normalize_planner_variant(self.cfg["model"]),
+                "val_total": val_metrics["total"],
+                "semantic_bank": self.semantic_bank_signature,
+            }
+            save_planner(self.planner, last_path, meta=checkpoint_meta)
             if val_metrics["total"] < best_val:
                 best_val = val_metrics["total"]
-                save_planner(self.planner, best_path, meta={"epoch": epoch, "config": self.cfg, "planner_variant": normalize_planner_variant(self.cfg["model"]), "val_total": val_metrics["total"]})
+                save_planner(self.planner, best_path, meta=checkpoint_meta)
             write_json({"history": history, "best_val": best_val, "best_ckpt": str(best_path), "last_ckpt": str(last_path)}, self.work_dir / "metrics.json")
         best_checkpoint = torch.load(best_path, map_location=self.device)
         load_planner_state(self.planner, best_checkpoint)

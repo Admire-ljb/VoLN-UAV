@@ -8,6 +8,7 @@ from voln_uav.common.io import write_jsonl
 from voln_uav.evaluation.paper_protocol import (
     inspect_benchmark_protocol,
     load_paper_protocol,
+    require_full_paper_split_selection,
     select_available_episodes,
 )
 
@@ -77,7 +78,7 @@ def test_protocol_inspection_accepts_seen_validation_and_unseen_test(tmp_path: P
         load_paper_protocol(ROOT / "configs" / "paper_protocol.yaml"),
     )
 
-    assert report["issues"] == []
+    assert report["issues"]
     assert report["status"] == "partial"
     assert report["total_episodes"] == 3
     assert report["splits"]["validation_seen"]["scenes"] == ["Forest"]
@@ -97,3 +98,59 @@ def test_protocol_inspection_detects_test_scene_leakage(tmp_path: Path) -> None:
     )
 
     assert any("Test-Unseen overlaps" in issue for issue in report["issues"])
+
+
+def test_protocol_ready_requires_episode_environment_and_source_invariants(tmp_path: Path) -> None:
+    def episode(episode_id: str, scene_id: str, scene_source: str, offset: float) -> dict:
+        return {
+            "episode_id": episode_id,
+            "scene_id": scene_id,
+            "scene_source": scene_source,
+            "difficulty": "Easy",
+            "states": [
+                {"position": [offset, 0.0, 0.0], "yaw": 0.0},
+                {"position": [offset + 1.0, 0.0, 0.0], "yaw": 0.0},
+            ],
+        }
+
+    write_jsonl([episode("train", "Forest", "source-a", 0.0)], tmp_path / "train.jsonl")
+    write_jsonl([episode("val", "Forest", "source-a", 10.0)], tmp_path / "val.jsonl")
+    write_jsonl([episode("test", "City", "source-b", 20.0)], tmp_path / "test.jsonl")
+    protocol = {
+        "name": "unit",
+        "dataset": {
+            "expected_episodes": 3,
+            "expected_environments": 2,
+            "difficulty_mix": {},
+        },
+        "splits": {
+            "require_held_out_scene_source": True,
+            "train": {"file": "train.jsonl", "expected_episodes": 1, "expected_environments": 1},
+            "validation_seen": {"file": "val.jsonl", "expected_episodes": 1, "expected_environments": 1},
+            "test_unseen": {"file": "test.jsonl", "expected_episodes": 1, "expected_environments": 1},
+        },
+    }
+
+    report = inspect_benchmark_protocol(tmp_path, protocol)
+
+    assert report["status"] == "ready"
+    assert report["issues"] == []
+
+
+def test_strict_evaluation_requires_the_complete_selected_split(tmp_path: Path) -> None:
+    split_file = tmp_path / "test.jsonl"
+    split_file.write_text("", encoding="utf-8")
+    report = {
+        "splits": {
+            "test_unseen": {
+                "file": str(split_file),
+                "expected_episodes": 2,
+            }
+        }
+    }
+    config = {"episodes_file": "test.jsonl"}
+    episodes = [{"episode_id": "a"}, {"episode_id": "b"}]
+    require_full_paper_split_selection(config, report, episodes)
+
+    with pytest.raises(ValueError, match="selected 1 of 2"):
+        require_full_paper_split_selection(config, report, episodes[:1])

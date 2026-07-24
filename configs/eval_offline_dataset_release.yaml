@@ -1,5 +1,6 @@
 seed: 7
 paper_protocol: paper_protocol.yaml
+strict_paper_protocol: true
 strict_scenes: false
 benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
 episodes_file: test.jsonl
@@ -29,3 +30,4 @@ model:
   lora_target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
   horizon: 8
   memory_len: 8
+  proprio_schema: body_linear_angular_relative_v1

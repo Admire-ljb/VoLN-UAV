@@ -12,7 +12,13 @@ from voln_uav.common.config import load_config
 from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.evaluation.airsim_loop import check_airsim_readiness
-from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, reference_travel_time, summarize_episode
+from voln_uav.evaluation.metrics import (
+    aggregate_by_difficulty,
+    aggregate_metrics,
+    reference_travel_time,
+    summarize_episode,
+    validated_shortest_path_length,
+)
 from voln_uav.evaluation.termination import StationaryDetector
 from voln_uav.simulators.airsim_env import AirSimRouteEnv
 
@@ -83,6 +89,7 @@ def _run_targets(
     random_stop_probability: float = 0.0,
     rng: random.Random | None = None,
     stop_at_end: bool = False,
+    max_decisions: int | None = None,
     initial_executed_path: list[list[float]] | None = None,
     initial_path_length_m: float = 0.0,
 ) -> tuple[list[list[float]], list[float], int, float, str, float, float, bool]:
@@ -95,7 +102,10 @@ def _run_targets(
     stationary_detector.update(_position(env), started_at)
     termination_reason = "completed_targets"
     stopped = False
-    for target in targets:
+    decision_limit = len(targets) if max_decisions is None else max(int(max_decisions), 0)
+    scheduled_targets = targets[:decision_limit]
+    truncated_by_step_limit = len(scheduled_targets) < len(targets)
+    for target in scheduled_targets:
         if rng is not None and rng.random() < max(min(float(random_stop_probability), 1.0), 0.0):
             termination_reason = "policy_stop"
             stopped = True
@@ -141,6 +151,8 @@ def _run_targets(
         if not paper_protocol and stationary_detector.update(pos, time.perf_counter()):
             termination_reason = "stationary_timeout"
             break
+    if termination_reason == "completed_targets" and truncated_by_step_limit:
+        termination_reason = "max_steps"
     episode_elapsed_sec = time.perf_counter() - started_at
     if stop_at_end and termination_reason == "completed_targets":
         stopped = True
@@ -324,6 +336,7 @@ def main() -> None:
                 random_stop_probability=float(cfg.get("random_stop_probability", 1.0 / max(int(cfg.get("max_steps", 128)), 1))),
                 rng=random_rng,
                 stop_at_end=args.baseline == "reference",
+                max_decisions=int(cfg.get("max_steps", 128)) if paper_protocol else None,
                 initial_executed_path=bootstrap_positions,
                 initial_path_length_m=bootstrap_path_length_m,
             )
@@ -332,7 +345,7 @@ def main() -> None:
                 ref_path=ref_path,
                 goal=goal,
                 success_radius=success_radius,
-                shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
+                shortest_path_length=validated_shortest_path_length(episode),
                 stopped=stopped,
             )
             trajectory_file = run_dir / "trajectories" / f"{args.baseline}_{trial:03d}_{episode_id}.json"
@@ -415,6 +428,8 @@ def main() -> None:
     summary = _summarize(details)
     summary["baseline"] = args.baseline
     summary["run_dir"] = str(run_dir)
+    summary["status"] = "diagnostic_baseline_complete"
+    summary["evaluation_backend"] = "airsim_online_baseline"
     write_json(summary, run_dir / "metrics.json")
     (run_dir / "paper_metrics.md").write_text(_paper_markdown(args.baseline, summary) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2, ensure_ascii=False), flush=True)

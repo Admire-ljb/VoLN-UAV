@@ -5,11 +5,19 @@ scene_manifest: scenes.jsonl
 preset_routes_dir: preset_routes
 custom_routes_dir: custom_routes
 horizon: 8
-
-splits:
-  train: 0.8
-  val: 0.1
-  test: 0.1
+split_manifest: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/metadata/paper_episode_splits.jsonl
+strict_paper_protocol: true
+require_shortest_path: true
+success_radius_m: 4.0
+paper_split_protocol:
+  train_episodes: 5047
+  validation_seen_episodes: 1082
+  test_unseen_episodes: 1081
+  train_environments: 12
+  validation_seen_environments: 5
+  test_unseen_environments: 5
+  total_environments: 17
+  require_held_out_scene_source: true
 
 difficulty:
   easy_lt: 300.0
@@ -25,8 +33,9 @@ goal_interface:
   num_beacons: 2
 
 beacons:
-  task_beacons_per_route: 4
-  background_per_scene: 20
+  task_beacons_min_per_route: 3
+  task_beacons_max_per_route: 5
+  background_per_scene: 150
   min_separation_steps: 8
   task_category_allowlist:
     - road-sign

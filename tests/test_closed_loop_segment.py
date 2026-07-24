@@ -1,4 +1,5 @@
 import torch
+import math
 
 from voln_uav.evaluation.closed_loop import ClosedLoopEvaluator
 from voln_uav.simulators.offline_env import RouteReplayEnv
@@ -22,3 +23,26 @@ def test_full_waypoint_segment_counts_as_one_decision():
     assert env.steps_taken == 1
     assert env.visited_indices == [0, 1, 3, 6]
     assert done is False
+
+
+def test_waypoint_segment_is_interpreted_in_decision_body_frame():
+    states = [
+        {
+            "position": [0.0, float(index), 0.0],
+            "yaw": math.pi / 2.0,
+            "image": f"{index}.png",
+        }
+        for index in range(7)
+    ]
+    env = RouteReplayEnv(
+        {"episode_id": "body-segment", "states": states, "path_length": 6.0},
+        success_radius=0.5,
+        max_steps=128,
+    )
+
+    state, _done = ClosedLoopEvaluator._execute_waypoint_segment(
+        env,
+        torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0]]),
+    )
+
+    assert state["position"] == [0.0, 5.0, 0.0]

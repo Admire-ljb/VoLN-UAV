@@ -9,8 +9,18 @@ import torch
 
 from voln_uav.common.geometry import l2
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json
-from voln_uav.evaluation.metrics import aggregate_by_difficulty, aggregate_metrics, summarize_episode
-from voln_uav.evaluation.paper_protocol import select_available_episodes
+from voln_uav.common.navigation_frames import body_point_to_world
+from voln_uav.evaluation.metrics import (
+    aggregate_by_difficulty,
+    aggregate_metrics,
+    summarize_episode,
+    validated_shortest_path_length,
+)
+from voln_uav.evaluation.paper_protocol import (
+    require_full_paper_split_selection,
+    require_paper_protocol_ready,
+    select_available_episodes,
+)
 from voln_uav.models.policy import VoLNPolicy
 from voln_uav.simulators.offline_env import RouteReplayEnv
 
@@ -20,12 +30,18 @@ class ClosedLoopEvaluator:
         self.cfg = config
         self.device = device
         self.benchmark_root = Path(config["benchmark_root"])
+        self.protocol_report = require_paper_protocol_ready(self.benchmark_root, config)
         raw_episodes = read_jsonl(self.benchmark_root / config["episodes_file"])
         self.episodes, self.scene_coverage = select_available_episodes(raw_episodes, config)
         episode_limit = config.get("episode_limit")
         if episode_limit is not None:
             self.episodes = self.episodes[: int(episode_limit)]
         self.scene_coverage["selected_episodes_after_limit"] = len(self.episodes)
+        require_full_paper_split_selection(
+            config,
+            self.protocol_report,
+            self.episodes,
+        )
         self.policy = None
         if self.episodes:
             self.policy = VoLNPolicy(
@@ -44,7 +60,18 @@ class ClosedLoopEvaluator:
             env.collisions += 1
             waypoint_list: list[list[float]] = []
         else:
-            waypoint_list = waypoints.detach().cpu().tolist()
+            origin_state = env.current_state()
+            origin = origin_state["position"]
+            yaw = float(origin_state.get("yaw", 0.0))
+            waypoint_list = [
+                body_point_to_world(
+                    point,
+                    origin,
+                    yaw,
+                    origin_state.get("orientation"),
+                )
+                for point in waypoints.detach().cpu().tolist()
+            ]
 
         for waypoint in waypoint_list:
             candidates = list(range(env.current_idx + 1, min(env.current_idx + 6, len(env.states))))
@@ -58,8 +85,7 @@ class ClosedLoopEvaluator:
             env.visited_indices.append(best_idx)
 
         env.steps_taken += 1
-        replay_end = env.current_idx >= len(env.states) - 1
-        env.done = replay_end or env.steps_taken >= env.max_steps
+        env.done = env.steps_taken >= env.max_steps
         return env.current_state(), env.done
 
     def evaluate(self) -> dict[str, Any]:
@@ -123,29 +149,8 @@ class ClosedLoopEvaluator:
                     break
                 state, done = self._execute_waypoint_segment(env, action)
                 if done:
-                    termination_reason = "replay_end"
+                    termination_reason = "max_steps"
 
-            # RouteReplayEnv ends when it first reaches the goal. Give the policy
-            # the corresponding decision at that state so SR still requires its
-            # learned stop head rather than automatic success on entry.
-            if done and not policy_stopped:
-                history_states = env.history_states(memory_len=int(self.cfg["model"]["memory_len"]))
-                start = time.perf_counter()
-                try:
-                    final_out = self.policy.act(state, history_states, episode["visual_goal"])
-                    final_stop_prob = float(final_out["stop_prob"])
-                    invalid = False
-                except Exception:
-                    final_stop_prob = 0.0
-                    invalid = True
-                ct = time.perf_counter() - start
-                cycle_times.append(ct)
-                if invalid or ct > float(self.cfg["budget_sec"]):
-                    local_errors += 1
-                    execution_errors += 1
-                if not invalid and final_stop_prob >= stop_threshold:
-                    policy_stopped = True
-                    termination_reason = "policy_stop"
             pred_path = env.executed_path()
             ref_path = env.reference_path()
             metrics = summarize_episode(
@@ -153,7 +158,7 @@ class ClosedLoopEvaluator:
                 ref_path=ref_path,
                 goal=episode["states"][-1]["position"],
                 success_radius=float(self.cfg["success_radius"]),
-                shortest_path_length=float(episode.get("shortest_path_length", episode.get("path_length", 1.0))),
+                shortest_path_length=validated_shortest_path_length(episode),
                 stopped=policy_stopped,
             )
             episode_metrics.append(metrics)
@@ -189,7 +194,8 @@ class ClosedLoopEvaluator:
         eer = execution_errors / max(len(cycle_times), 1)
         summary = {
             **agg,
-            "status": "complete",
+            "status": "diagnostic_proxy_complete",
+            "evaluation_backend": "teacher_forced_route_replay",
             "CT_mean": ct_mean,
             "CT_p95": ct_p95,
             "EER": eer,

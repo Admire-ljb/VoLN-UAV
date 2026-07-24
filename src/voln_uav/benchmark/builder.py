@@ -1,14 +1,24 @@
 from __future__ import annotations
 
-import json
 import random
 from pathlib import Path
 from typing import Any
 
 from tqdm import tqdm
 
-from voln_uav.benchmark.beacon_augmentation import generate_beacons, visible_beacon_labels
-from voln_uav.benchmark.splitter import assign_scene_splits, deduplicate_episodes
+from voln_uav.benchmark.beacon_augmentation import (
+    background_visibility_for_route,
+    generate_beacons,
+    generate_scene_background_beacons,
+    visible_beacon_labels,
+)
+from voln_uav.benchmark.splitter import (
+    assign_episode_splits_from_manifest,
+    deduplicate_episodes,
+    normalize_paper_split,
+    trajectory_fingerprint,
+    validate_paper_split_episodes,
+)
 from voln_uav.benchmark.trajectory import (
     compute_path_length,
     compute_start_goal_distance,
@@ -16,8 +26,9 @@ from voln_uav.benchmark.trajectory import (
     load_route_files,
 )
 from voln_uav.benchmark.visual_goal import build_visual_goal_interface
-from voln_uav.common.geometry import path_length
+from voln_uav.common.geometry import l2
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
+from voln_uav.common.navigation_frames import encode_proprioception, world_point_to_body
 
 
 class BenchmarkBuilder:
@@ -52,11 +63,28 @@ class BenchmarkBuilder:
 
     def build(self) -> dict[str, Any]:
         scenes = self.load_scene_manifest()
-        scene_ids = [s["scene_id"] for s in scenes]
         scene_map = {s["scene_id"]: s for s in scenes}
-        split_map = assign_scene_splits(scene_ids, self.cfg["splits"], self.seed)
 
         routes = load_route_files(self.source_root, self.cfg["preset_routes_dir"], self.cfg["custom_routes_dir"])
+        routes_by_scene: dict[str, list[dict[str, Any]]] = {}
+        for route in routes:
+            routes_by_scene.setdefault(str(route["scene_id"]), []).append(route)
+        scene_backgrounds = {
+            scene_id: generate_scene_background_beacons(
+                scene_id=scene_id,
+                scene_type=str(scene_map[scene_id].get("scene_type", "unknown")),
+                scene_states=[
+                    state
+                    for route in scene_routes
+                    for state in route["states"]
+                ],
+                output_root=self.output_root,
+                count=int(self.cfg["beacons"]["background_per_scene"]),
+                semantic_bank=self.semantic_bank,
+                seed=self.seed,
+            )
+            for scene_id, scene_routes in routes_by_scene.items()
+        }
         episodes: list[dict[str, Any]] = []
 
         for route in tqdm(routes, desc="building-episodes"):
@@ -67,17 +95,41 @@ class BenchmarkBuilder:
                 route,
                 min_separation_steps=int(self.cfg["beacons"]["min_separation_steps"]),
             )
+            default_task_beacons = int(
+                self.cfg["beacons"].get("task_beacons_per_route", 4)
+            )
+            min_task_beacons = int(
+                self.cfg["beacons"].get(
+                    "task_beacons_min_per_route",
+                    default_task_beacons,
+                )
+            )
+            max_task_beacons = int(
+                self.cfg["beacons"].get(
+                    "task_beacons_max_per_route",
+                    default_task_beacons,
+                )
+            )
+            if min_task_beacons < 0 or max_task_beacons < min_task_beacons:
+                raise ValueError("Invalid active-beacon count range")
             task_beacons, background_beacons = generate_beacons(
                 scene_id=scene_id,
                 scene_type=str(scene_meta.get("scene_type", "unknown")),
                 decision_points=decision_points,
                 route_length=len(route["states"]),
                 output_root=self.output_root,
-                task_beacons_per_route=int(self.cfg["beacons"]["task_beacons_per_route"]),
-                background_per_scene=int(self.cfg["beacons"]["background_per_scene"]),
+                task_beacons_per_route=self.rng.randint(
+                    min_task_beacons,
+                    max_task_beacons,
+                ),
+                background_per_scene=0,
                 semantic_bank=self.semantic_bank,
                 rng=self.rng,
                 task_category_allowlist=self.cfg["beacons"].get("task_category_allowlist"),
+            )
+            background_beacons = background_visibility_for_route(
+                scene_backgrounds[scene_id],
+                route["states"],
             )
             visual_goal = build_visual_goal_interface(
                 route,
@@ -90,12 +142,14 @@ class BenchmarkBuilder:
                 "episode_id": f"{scene_id}_{route['trajectory_id']}",
                 "scene_id": scene_id,
                 "scene_type": scene_meta.get("scene_type", "unknown"),
+                "scene_source": scene_meta.get("scene_source"),
                 "route_source": route.get("source", "preset"),
-                "split": split_map[scene_id],
+                "split": route.get("split"),
                 "goal_category": route.get("goal_category", "goal"),
                 "path_length": route_len,
                 "start_to_goal_distance": compute_start_goal_distance(route),
-                "shortest_path_length": route_len,
+                "shortest_path_length": route.get("shortest_path_length"),
+                "shortest_path_provenance": route.get("shortest_path_provenance"),
                 "difficulty": self.difficulty_label(route_len),
                 "visual_goal": visual_goal,
                 "task_beacons": task_beacons,
@@ -109,6 +163,48 @@ class BenchmarkBuilder:
             start_threshold=float(self.cfg["dedup"]["start_threshold"]),
             goal_threshold=float(self.cfg["dedup"]["goal_threshold"]),
         )
+        split_manifest = self.cfg.get("split_manifest")
+        if split_manifest:
+            manifest_path = Path(split_manifest)
+            if not manifest_path.is_absolute():
+                manifest_path = self.source_root / manifest_path
+            episodes = assign_episode_splits_from_manifest(
+                episodes,
+                read_jsonl(manifest_path),
+            )
+        else:
+            if bool(self.cfg.get("strict_paper_protocol", False)):
+                raise ValueError(
+                    "strict_paper_protocol requires an explicit episode-level split_manifest; "
+                    "scene-level random ratios cannot represent Validation-Seen"
+                )
+            for episode in episodes:
+                if episode.get("split") is None:
+                    raise ValueError(
+                        f"Episode {episode['episode_id']} has no split. Supply split_manifest."
+                    )
+                episode["split"] = normalize_paper_split(str(episode["split"]))
+                episode["trajectory_hash"] = trajectory_fingerprint(episode)
+
+        split_protocol = self.cfg.get("paper_split_protocol")
+        if bool(self.cfg.get("strict_paper_protocol", False)):
+            if not isinstance(split_protocol, dict):
+                raise ValueError("strict_paper_protocol requires paper_split_protocol")
+            validate_paper_split_episodes(episodes, split_protocol)
+
+        require_shortest_path = bool(self.cfg.get("require_shortest_path", False))
+        if require_shortest_path:
+            missing_shortest = [
+                episode["episode_id"]
+                for episode in episodes
+                if episode.get("shortest_path_length") is None
+                or not isinstance(episode.get("shortest_path_provenance"), dict)
+            ]
+            if missing_shortest:
+                raise ValueError(
+                    "Paper SPL requires independently computed shortest paths; "
+                    f"{len(missing_shortest)} episodes are missing length/provenance"
+                )
 
         write_jsonl(episodes, self.output_root / "episodes.jsonl")
 
@@ -142,8 +238,16 @@ class BenchmarkBuilder:
                 future = []
                 for off in range(1, self.horizon + 1):
                     future_idx = min(step_idx + off, len(states) - 1)
-                    future.append(states[future_idx]["position"])
+                    future.append(
+                        world_point_to_body(
+                            states[future_idx]["position"],
+                            state["position"],
+                            float(state.get("yaw", 0.0)),
+                            state.get("orientation"),
+                        )
+                    )
                 anchor = future[-1]
+                previous_state = states[step_idx - 1] if step_idx > 0 else None
                 record = {
                     "record_id": f"{episode['episode_id']}_{step_idx:04d}",
                     "episode_id": episode["episode_id"],
@@ -153,10 +257,13 @@ class BenchmarkBuilder:
                     "difficulty": episode["difficulty"],
                     "step": step_idx,
                     "image": state["image"],
-                    "proprio": list(state.get("imu", [])) + list(state.get("odometry", [])),
+                    "proprio": encode_proprioception(state, previous_state),
+                    "proprio_schema": "body_linear_angular_relative_v1",
+                    "waypoint_frame": "body_relative",
                     "future_waypoints": future,
                     "anchor_waypoint": anchor,
-                    "stop": step_idx >= len(states) - 2,
+                    "stop": l2(state["position"], states[-1]["position"])
+                    <= float(self.cfg.get("success_radius_m", 4.0)),
                     "visual_goal": episode["visual_goal"],
                     "beacon_label": visible_beacon_labels(step_idx, episode["task_beacons"], episode["background_beacons"]),
                     "path_length": episode["path_length"],

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-DEFAULT_STAGES = ["build", "train-adapter", "train-planner", "offline-eval"]
+DEFAULT_STAGES = ["build", "train-adapter", "train-planner"]
 STAGE_TO_MODULE = {
     "build": "voln_uav.cli.build_benchmark",
     "train-adapter": "voln_uav.cli.train_adapter",

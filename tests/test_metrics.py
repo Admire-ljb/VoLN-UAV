@@ -1,6 +1,13 @@
 import math
+import pytest
 
-from voln_uav.evaluation.metrics import aggregate_by_difficulty, ndtw, reference_travel_time, summarize_episode
+from voln_uav.evaluation.metrics import (
+    aggregate_by_difficulty,
+    ndtw,
+    reference_travel_time,
+    summarize_episode,
+    validated_shortest_path_length,
+)
 
 
 def test_metrics_basic():
@@ -75,3 +82,38 @@ def test_sr_requires_explicit_stop_but_osr_does_not():
     assert out["SR"] == 0.0
     assert out["OSR"] == 1.0
     assert out["SPL"] == 0.0
+
+
+def test_osr_detects_continuous_segment_crossing_goal_region():
+    out = summarize_episode(
+        pred_path=[[-2.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
+        ref_path=[[-2.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        goal=[0.0, 0.0, 0.0],
+        success_radius=0.5,
+        shortest_path_length=2.0,
+        stopped=False,
+    )
+    assert out["OSR"] == 1.0
+
+
+def test_spl_shortest_path_requires_independent_provenance():
+    with pytest.raises(ValueError, match="independently computed"):
+        validated_shortest_path_length(
+            {
+                "episode_id": "bad",
+                "shortest_path_length": 10.0,
+            }
+        )
+    assert (
+        validated_shortest_path_length(
+            {
+                "episode_id": "ok",
+                "shortest_path_length": 8.0,
+                "shortest_path_provenance": {
+                    "method": "navigation_graph_astar",
+                    "version": "1",
+                },
+            }
+        )
+        == 8.0
+    )

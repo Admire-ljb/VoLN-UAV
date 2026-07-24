@@ -97,3 +97,25 @@ def test_planner_variant_aliases() -> None:
     assert normalize_planner_variant({"planner_variant": "seq"}) == "seq2seq"
     assert normalize_planner_variant({"planner_variant": "seq-to-seq"}) == "seq2seq"
     assert normalize_planner_variant({"planner_variant": "voln-uav"}) == "voln"
+
+
+def test_seq2seq_uses_retrieved_semantic_tokens() -> None:
+    embed_dim = 16
+    planner = Seq2SeqPlanner(
+        dino_encoder=DummyEncoder(),
+        adapter=DummyAdapter(),
+        semantic_bank=_semantic_bank(embed_dim),
+        embed_dim=embed_dim,
+        hidden_dim=32,
+        num_heads=4,
+        num_layers=2,
+        lora_rank=4,
+        horizon=5,
+        top_k_semantic=3,
+    )
+    batch = _batch(batch_size=1, embed_dim=embed_dim)
+    original = planner(batch)["waypoints"]
+    with torch.no_grad():
+        planner.semantic_bank.embeddings = -planner.semantic_bank.embeddings
+    changed = planner(batch)["waypoints"]
+    assert not torch.allclose(original, changed)

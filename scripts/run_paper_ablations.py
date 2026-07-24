@@ -37,11 +37,18 @@ def _run(command: list[str], env: dict[str, str], dry_run: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train and evaluate the three manuscript ablations.")
     parser.add_argument("--variants", nargs="+", choices=VARIANTS, default=list(VARIANTS))
-    parser.add_argument("--stages", nargs="+", choices=["train", "offline", "airsim"], default=["train", "offline"])
+    parser.add_argument("--stages", nargs="+", choices=["train", "offline", "airsim"], default=["train", "airsim"])
+    parser.add_argument(
+        "--allow-offline-diagnostic",
+        action="store_true",
+        help="Allow route-replay diagnostics in addition to AirSim paper evaluation.",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if "offline" in args.stages and not args.allow_offline_diagnostic:
+        parser.error("offline route replay requires --allow-offline-diagnostic")
 
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()

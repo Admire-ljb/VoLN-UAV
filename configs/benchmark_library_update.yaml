@@ -6,10 +6,10 @@ horizon: 8
 scene_manifest: scenes.jsonl
 preset_routes_dir: preset_routes
 custom_routes_dir: custom_routes
-splits:
-  train: 0.75
-  val: 0.125
-  test: 0.125
+split_manifest: metadata/episode_splits.jsonl
+strict_paper_protocol: false
+require_shortest_path: false
+success_radius_m: 4.0
 dedup:
   start_threshold: 20.0
   goal_threshold: 20.0
@@ -19,8 +19,9 @@ goal_interface:
   num_beacons: 4
 beacons:
   decision_radius: 6.0
-  background_per_scene: 20
-  task_beacons_per_route: 4
+  background_per_scene: 150
+  task_beacons_min_per_route: 3
+  task_beacons_max_per_route: 5
   min_separation_steps: 8
   task_category_allowlist:
     - road-sign

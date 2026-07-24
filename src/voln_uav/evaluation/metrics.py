@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from typing import Any, Sequence
 
 from voln_uav.common.geometry import l2, path_length
 
@@ -9,6 +9,26 @@ from voln_uav.common.geometry import l2, path_length
 Vec3 = Sequence[float]
 METRIC_KEYS = ("NE", "SR", "OSR", "nDTW", "SPL")
 DIFFICULTY_ORDER = ("Easy", "Normal", "Hard")
+
+
+def validated_shortest_path_length(episode: dict[str, Any]) -> float:
+    value = episode.get("shortest_path_length")
+    provenance = episode.get("shortest_path_provenance")
+    if value is None or not isinstance(provenance, dict):
+        raise ValueError(
+            f"Episode {episode.get('episode_id', '<unknown>')} lacks an independently "
+            "computed shortest path and provenance required for SPL"
+        )
+    method = str(provenance.get("method", "")).strip().casefold()
+    if not method or method in {"reference_path", "reference_path_length", "demonstration"}:
+        raise ValueError(
+            f"Episode {episode.get('episode_id', '<unknown>')} uses invalid SPL "
+            f"shortest-path provenance: {method or '<missing>'}"
+        )
+    length = float(value)
+    if not math.isfinite(length) or length <= 0.0:
+        raise ValueError("shortest_path_length must be finite and positive")
+    return length
 
 
 
@@ -26,7 +46,26 @@ def success(pred_path: Sequence[Vec3], goal: Vec3, radius: float, stopped: bool 
 
 
 def oracle_success(pred_path: Sequence[Vec3], goal: Vec3, radius: float) -> bool:
-    return any(l2(p, goal) <= radius for p in pred_path)
+    if any(l2(point, goal) <= radius for point in pred_path):
+        return True
+    return any(
+        _point_to_segment_distance(goal, pred_path[index - 1], pred_path[index]) <= radius
+        for index in range(1, len(pred_path))
+    )
+
+
+def _point_to_segment_distance(point: Vec3, start: Vec3, end: Vec3) -> float:
+    segment = [float(end[index]) - float(start[index]) for index in range(3)]
+    offset = [float(point[index]) - float(start[index]) for index in range(3)]
+    denominator = sum(value * value for value in segment)
+    if denominator <= 1e-12:
+        return l2(point, start)
+    fraction = max(
+        0.0,
+        min(1.0, sum(offset[index] * segment[index] for index in range(3)) / denominator),
+    )
+    closest = [float(start[index]) + fraction * segment[index] for index in range(3)]
+    return l2(point, closest)
 
 
 
@@ -61,6 +100,11 @@ def spl(
     shortest_path_length: float,
     stopped: bool = True,
 ) -> float:
+    if not math.isfinite(float(shortest_path_length)) or float(shortest_path_length) <= 0.0:
+        raise ValueError(
+            "SPL requires a positive independently computed shortest_path_length; "
+            "the reference trajectory length is not a valid fallback"
+        )
     succ = 1.0 if success(pred_path, goal, success_radius, stopped=stopped) else 0.0
     actual = max(path_length(pred_path), 1e-6)
     optimal = max(float(shortest_path_length), 1e-6)

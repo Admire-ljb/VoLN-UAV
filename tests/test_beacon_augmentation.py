@@ -1,6 +1,10 @@
 import random
 
-from voln_uav.benchmark.beacon_augmentation import generate_beacons
+from voln_uav.benchmark.beacon_augmentation import (
+    background_visibility_for_route,
+    generate_beacons,
+    generate_scene_background_beacons,
+)
 
 
 def test_generate_beacons_uses_current_semantic_labels(tmp_path):
@@ -67,3 +71,34 @@ def test_generate_beacons_empty_allowlist_disables_non_beacon_categories(tmp_pat
     )
     task_types = {item["semantic_type"] for item in task_beacons}
     assert task_types == {"beacon-blue", "beacon-red"}
+
+
+def test_passive_beacon_layout_is_scene_fixed_across_routes(tmp_path):
+    scene_states = [
+        {"position": [float(index), 0.0, -10.0], "yaw": 0.0}
+        for index in range(10)
+    ]
+    first = generate_scene_background_beacons(
+        scene_id="forest",
+        scene_type="forest",
+        scene_states=scene_states,
+        output_root=tmp_path,
+        count=6,
+        semantic_bank=["beacon-green", "turn-left", "forest-trail"],
+        seed=7,
+    )
+    second = generate_scene_background_beacons(
+        scene_id="forest",
+        scene_type="forest",
+        scene_states=scene_states,
+        output_root=tmp_path,
+        count=6,
+        semantic_bank=["beacon-green", "turn-left", "forest-trail"],
+        seed=7,
+    )
+
+    assert first == second
+    assert all(item["relevance_rule"] == "scene_passive" for item in first)
+    route_a = background_visibility_for_route(first, scene_states[:5])
+    route_b = background_visibility_for_route(first, scene_states[5:])
+    assert [item["position"] for item in route_a] == [item["position"] for item in route_b]
