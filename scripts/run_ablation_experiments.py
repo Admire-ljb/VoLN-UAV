@@ -54,7 +54,7 @@ def main() -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
 
-    main_adapter = Path("D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper/adapter_best.pt")
+    main_adapter = Path("runs/adapter_voln_mllm/adapter_best.pt")
     if "train" in args.stages and "no_lora" in args.variants and not main_adapter.exists():
         _run(
             [

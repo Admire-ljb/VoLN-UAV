@@ -76,7 +76,7 @@ def test_ablation_configs_match_manuscript_definitions():
     clip_input = _load("train_planner_clip_input_dataset_release.yaml")
 
     assert no_align_adapter["alignment_mode"] == "no_align"
-    assert no_align["adapter_ckpt"].endswith("adapter_no_align_paper/adapter_best.pt")
+    assert no_align["adapter_ckpt"].endswith("adapter_no_align/adapter_best.pt")
     assert no_lora["model"]["lora_enabled"] is False
     assert clip_input["model"]["vision_input"] == "clip"
     assert clip_input["adapter_ckpt"] is None
@@ -86,3 +86,16 @@ def test_ablation_configs_match_manuscript_definitions():
         assert variant["val_records"] == "records/val.jsonl"
         assert variant["model"]["planner_backbone"] == "lmsys/vicuna-7b-v1.5"
         assert variant["model"]["horizon"] == 8
+
+
+def test_online_controller_defaults_are_explicit():
+    assert _load("eval_airsim_dataset_release.yaml")["controller"] == "random"
+    for name in (
+        "eval_airsim_seq2seq_dataset_release.yaml",
+        "eval_airsim_cma_dataset_release.yaml",
+        "eval_airsim_lag_dataset_release.yaml",
+        "eval_airsim_no_align_dataset_release.yaml",
+        "eval_airsim_no_lora_dataset_release.yaml",
+        "eval_airsim_clip_input_dataset_release.yaml",
+    ):
+        assert _load(name)["controller"] == "policy", name

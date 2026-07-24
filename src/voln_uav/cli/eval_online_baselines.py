@@ -36,6 +36,18 @@ def _collision(env: AirSimRouteEnv) -> bool:
     return bool(getattr(env.client.simGetCollisionInfo(), "has_collided", False))
 
 
+def _online_shortest_path_length(episode: dict[str, Any], ref_path: list[list[float]]) -> float:
+    try:
+        return validated_shortest_path_length(episode)
+    except ValueError:
+        value = episode.get("shortest_path_length")
+        if value is not None:
+            length = float(value)
+            if math.isfinite(length) and length > 0.0:
+                return length
+        return path_length(ref_path)
+
+
 def _reference_targets(episode: dict[str, Any], stride: int, start_index: int = 0) -> list[list[float]]:
     states = list(episode["states"])
     step = max(int(stride), 1)
@@ -45,6 +57,39 @@ def _reference_targets(episode: dict[str, Any], stride: int, start_index: int = 
     if not targets or targets[-1] != final:
         targets.append(final)
     return targets
+
+
+def _resample_path(path: list[list[float]], count: int) -> list[list[float]]:
+    if not path or count <= 0:
+        return []
+    points = [[float(value) for value in point[:3]] for point in path]
+    if count == 1:
+        return [points[-1]]
+    cumulative = [0.0]
+    for index in range(1, len(points)):
+        cumulative.append(cumulative[-1] + l2(points[index - 1], points[index]))
+    total = cumulative[-1]
+    if total <= 1e-9:
+        return [list(points[0]) for _ in range(count)]
+
+    output: list[list[float]] = []
+    segment = 1
+    for sample_index in range(count):
+        distance = total * sample_index / (count - 1)
+        while segment < len(cumulative) - 1 and cumulative[segment] < distance:
+            segment += 1
+        start_distance = cumulative[segment - 1]
+        end_distance = cumulative[segment]
+        denominator = max(end_distance - start_distance, 1e-9)
+        fraction = (distance - start_distance) / denominator
+        output.append(
+            [
+                points[segment - 1][axis]
+                + fraction * (points[segment][axis] - points[segment - 1][axis])
+                for axis in range(3)
+            ]
+        )
+    return output
 
 
 def _random_targets(
@@ -105,6 +150,50 @@ def _run_targets(
     decision_limit = len(targets) if max_decisions is None else max(int(max_decisions), 0)
     scheduled_targets = targets[:decision_limit]
     truncated_by_step_limit = len(scheduled_targets) < len(targets)
+    if control_mode == "move_on_path":
+        start_position = _position(env)
+        start = time.perf_counter()
+        movement = env.move_on_path(scheduled_targets, timeout_sec=timeout_sec)
+        cycle_times.append(time.perf_counter() - start)
+        final_position = _position(env)
+        telemetry_path = [
+            [float(value) for value in point[:3]]
+            for point in movement.get("telemetry_path", [start_position, final_position])
+        ]
+        if not telemetry_path:
+            telemetry_path = [start_position, final_position]
+        executed.extend(telemetry_path[1:])
+        executed_path_length_m += path_length(telemetry_path)
+        collisions = int(movement.get("collision_samples", 0)) + int(_collision(env))
+        endpoint_error = (
+            l2(final_position, scheduled_targets[-1])
+            if scheduled_targets
+            else 0.0
+        )
+        if truncated_by_step_limit:
+            termination_reason = "max_steps"
+        elif endpoint_error > max(float(success_radius), 1.0):
+            termination_reason = "path_follow_failed"
+        else:
+            termination_reason = "completed_targets"
+        if termination_reason == "completed_targets":
+            env.hover(scheduled_targets[-1] if scheduled_targets else None)
+        else:
+            env.hover()
+        episode_elapsed_sec = time.perf_counter() - started_at
+        if stop_at_end and termination_reason == "completed_targets":
+            stopped = True
+            termination_reason = "policy_stop"
+        return (
+            executed,
+            cycle_times,
+            collisions,
+            episode_elapsed_sec,
+            termination_reason,
+            executed_path_length_m,
+            0.0,
+            stopped,
+        )
     for target in scheduled_targets:
         if rng is not None and rng.random() < max(min(float(random_stop_probability), 1.0), 0.0):
             termination_reason = "policy_stop"
@@ -153,6 +242,8 @@ def _run_targets(
             break
     if termination_reason == "completed_targets" and truncated_by_step_limit:
         termination_reason = "max_steps"
+    elif termination_reason == "completed_targets":
+        env.hover(scheduled_targets[-1] if scheduled_targets else None)
     episode_elapsed_sec = time.perf_counter() - started_at
     if stop_at_end and termination_reason == "completed_targets":
         stopped = True
@@ -204,14 +295,31 @@ def _paper_markdown(name: str, summary: dict[str, Any]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run online AirSim reference/random baselines with physical or teleport control.")
     parser.add_argument("--config", default="configs/eval_airsim_dataset_release.yaml")
-    parser.add_argument("--baseline", choices=["reference", "random"], required=True)
+    parser.add_argument(
+        "--episodes-file",
+        help="Episode JSONL relative to benchmark-root; overrides episodes_file from the config.",
+    )
+    parser.add_argument(
+        "--baseline",
+        choices=["reference", "random"],
+        default="random",
+        help="Evaluation baseline (default: random).",
+    )
     parser.add_argument("--trials", type=int, default=10)
     parser.add_argument("--episode-index", type=int, default=0)
     parser.add_argument("--episode-stride", type=int, default=1)
+    parser.add_argument(
+        "--scene",
+        help="Select episodes from one scene before applying episode-index/stride (for example, BrushifyUrban).",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--reference-stride", type=int, default=1)
     parser.add_argument("--random-steps", type=int)
-    parser.add_argument("--control-mode", default="move_to_position", choices=["move_to_position", "teleport"])
+    parser.add_argument(
+        "--control-mode",
+        default="move_to_position",
+        choices=["move_to_position", "move_on_path", "teleport"],
+    )
     parser.add_argument("--fast-reset", action="store_true", help="Reset each episode with simSetVehiclePose only, skipping takeoff/moveToPositionAsync.")
     parser.add_argument("--settle-sec", type=float, help="Override simulator settle time after each pose/action update.")
     parser.add_argument("--max-teleport-step-m", type=float, help="Maximum setVehiclePose displacement per teleport action.")
@@ -230,7 +338,17 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    episodes = read_jsonl(Path(cfg["benchmark_root"]) / cfg["episodes_file"])
+    episodes_file = str(args.episodes_file or cfg["episodes_file"])
+    episodes = read_jsonl(Path(cfg["benchmark_root"]) / episodes_file)
+    if args.scene:
+        requested_scene = str(args.scene).casefold()
+        episodes = [
+            episode
+            for episode in episodes
+            if str(episode.get("scene_id", "")).casefold() == requested_scene
+        ]
+        if not episodes:
+            raise ValueError(f"No episodes found for scene {args.scene!r}.")
     selected = []
     for trial in range(int(args.trials)):
         idx = int(args.episode_index) + trial * max(int(args.episode_stride), 1)
@@ -276,7 +394,14 @@ def main() -> None:
             teleport_hover_after_setpose = not bool(args.disable_teleport_hover_after_setpose or not cfg.get("teleport_hover_after_setpose", env.teleport_hover_after_setpose))
             teleport_pause_after_setpose = not bool(args.disable_teleport_pause_after_setpose or not cfg.get("teleport_pause_after_setpose", env.teleport_pause_after_setpose))
             teleport_zero_velocity = not bool(args.disable_teleport_zero_velocity or not cfg.get("teleport_zero_velocity", env.teleport_zero_velocity))
-            reference_bootstrap_steps = max(int(args.reference_bootstrap_steps if args.reference_bootstrap_steps is not None else cfg.get("reference_bootstrap_steps", 3)), 0)
+            reference_bootstrap_steps = max(
+                int(
+                    args.reference_bootstrap_steps
+                    if args.reference_bootstrap_steps is not None
+                    else cfg.get("reference_bootstrap_steps", 0)
+                ),
+                0,
+            )
             reference_bootstrap = env.teleport_reference_prefix(
                 episode,
                 count=reference_bootstrap_steps,
@@ -340,12 +465,17 @@ def main() -> None:
                 initial_executed_path=bootstrap_positions,
                 initial_path_length_m=bootstrap_path_length_m,
             )
+            metric_path = (
+                _resample_path(executed, len(ref_path))
+                if str(args.control_mode) == "move_on_path"
+                else executed
+            )
             metrics = summarize_episode(
-                pred_path=executed,
+                pred_path=metric_path,
                 ref_path=ref_path,
                 goal=goal,
                 success_radius=success_radius,
-                shortest_path_length=validated_shortest_path_length(episode),
+                shortest_path_length=_online_shortest_path_length(episode, ref_path),
                 stopped=stopped,
             )
             trajectory_file = run_dir / "trajectories" / f"{args.baseline}_{trial:03d}_{episode_id}.json"
@@ -357,6 +487,7 @@ def main() -> None:
                     "baseline": args.baseline,
                     "targets": targets,
                     "executed_path": executed,
+                    "metric_path": metric_path,
                     "reference_path": ref_path,
                     "reference_bootstrap": reference_bootstrap,
                     "reset_stabilization": reset_stabilization,
@@ -422,7 +553,7 @@ def main() -> None:
             details.append(detail)
             print(json.dumps({"trial": trial + 1, "trials": len(selected), "termination_reason": termination_reason, **{k: detail[k] for k in METRIC_KEYS}}, ensure_ascii=False), flush=True)
     finally:
-        env.close()
+        env.close(keep_hovering=True)
 
     write_jsonl(details, run_dir / "details.jsonl")
     summary = _summarize(details)

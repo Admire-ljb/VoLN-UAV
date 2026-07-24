@@ -181,7 +181,7 @@ class AirSimClosedLoopEvaluator:
         )
         if self.episodes:
             raise_for_airsim_readiness(config, self.episodes)
-        self.controller = str(config.get("controller", "policy")).lower()
+        self.controller = str(config.get("controller", "random")).lower()
         if self.controller not in {"policy", "reference", "random"}:
             raise ValueError(f"Unsupported AirSim controller: {self.controller}")
         self.policy = None
@@ -345,7 +345,7 @@ class AirSimClosedLoopEvaluator:
         teleport_hover_after_setpose = bool(self.cfg.get("teleport_hover_after_setpose", env.teleport_hover_after_setpose))
         teleport_pause_after_setpose = bool(self.cfg.get("teleport_pause_after_setpose", env.teleport_pause_after_setpose))
         teleport_zero_velocity = bool(self.cfg.get("teleport_zero_velocity", env.teleport_zero_velocity))
-        reference_bootstrap_steps = max(int(self.cfg.get("reference_bootstrap_steps", 3)), 0)
+        reference_bootstrap_steps = max(int(self.cfg.get("reference_bootstrap_steps", 0)), 0)
         fast_reset = bool(self.cfg.get("fast_reset", control_mode == "teleport"))
         reset_stabilization = env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
         beacon_placements = env.place_beacons_for_episode(

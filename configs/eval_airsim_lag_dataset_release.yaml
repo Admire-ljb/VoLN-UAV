@@ -2,12 +2,13 @@ seed: 7
 paper_protocol: paper_protocol.yaml
 strict_paper_protocol: true
 strict_scenes: false
-benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+controller: policy
+benchmark_root: data/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper/adapter_best.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_vg_paper/planner_best.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_lag_vg_paper
+adapter_ckpt: runs/adapter_voln_mllm/adapter_best.pt
+planner_ckpt: runs/planner_lag_vg/planner_best.pt
+work_dir: runs/eval_airsim_lag_vg
 
 ip: 127.0.0.1
 port: 41451
@@ -53,7 +54,7 @@ beacon_placement:
   hidden_z: -500.0
 env:
   auto_launch: false
-  root_path: D:/VoLN_dataset/VoLN-UAV-ENV
+  root_path: simulator_environments
   scene_mapping: configs/airsim_scene_mapping_dataset_release.json
   launch_wait_sec: 20.0
   executable_args:

@@ -1,11 +1,11 @@
 seed: 7
-source_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/source
-output_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+source_root: data/source
+output_root: data/benchmark
 scene_manifest: scenes.jsonl
 preset_routes_dir: preset_routes
 custom_routes_dir: custom_routes
 horizon: 8
-split_manifest: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/metadata/paper_episode_splits.jsonl
+split_manifest: data/metadata/episode_splits.jsonl
 strict_paper_protocol: true
 require_shortest_path: true
 success_radius_m: 4.0

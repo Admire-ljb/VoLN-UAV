@@ -1,7 +1,8 @@
 extends: eval_airsim_dataset_release.yaml
+controller: policy
 adapter_ckpt: null
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_clip_input_paper/planner_best.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_clip_input_paper
+planner_ckpt: runs/planner_clip_input/planner_best.pt
+work_dir: runs/eval_airsim_clip_input
 model:
   ablation: clip_input
   vision_input: clip

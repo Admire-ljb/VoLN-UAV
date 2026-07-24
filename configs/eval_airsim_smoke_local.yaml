@@ -1,10 +1,10 @@
 seed: 7
-benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+benchmark_root: data/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_airsim_smoke
+adapter_ckpt: runs/adapter_dataset_release/adapter_last.pt
+planner_ckpt: runs/planner_dataset_release/planner_last.pt
+work_dir: runs/eval_airsim_smoke
 
 ip: 127.0.0.1
 port: 41451
@@ -42,7 +42,7 @@ beacon_placement:
   hidden_z: -500.0
 env:
   auto_launch: true
-  root_path: D:/VoLN_dataset/VoLN-UAV-ENV
+  root_path: simulator_environments
   scene_mapping: configs/airsim_scene_mapping_dataset_release.json
   launch_wait_sec: 45.0
   executable_args:

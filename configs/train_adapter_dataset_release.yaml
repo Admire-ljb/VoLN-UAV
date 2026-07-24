@@ -1,7 +1,7 @@
 seed: 7
-benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+benchmark_root: data/benchmark
 records_file: records/train.jsonl
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper
+work_dir: runs/adapter_voln_mllm
 batch_size: 32
 num_workers: 4
 epochs: 10

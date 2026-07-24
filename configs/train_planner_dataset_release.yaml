@@ -1,10 +1,10 @@
 seed: 7
-benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+benchmark_root: data/benchmark
 train_records: records/train.jsonl
 val_records: records/val.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_voln_mllm_paper/adapter_best.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/planner_voln_mllm_paper
+adapter_ckpt: runs/adapter_voln_mllm/adapter_best.pt
+work_dir: runs/planner_voln_mllm
 batch_size: 1
 gradient_accumulation_steps: 16
 max_grad_norm: 1.0

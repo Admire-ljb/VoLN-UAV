@@ -1,6 +1,6 @@
 extends: eval_offline_dataset_release.yaml
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_no_align_paper/adapter_best.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_no_align_paper/planner_best.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_no_align_paper
+adapter_ckpt: runs/adapter_no_align/adapter_best.pt
+planner_ckpt: runs/planner_no_align/planner_best.pt
+work_dir: runs/eval_offline_no_align
 model:
   ablation: no_align

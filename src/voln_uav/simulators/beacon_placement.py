@@ -6,14 +6,24 @@ import random
 from typing import Any
 
 SIGN_ASSET_BASE = {
-    "left_yaw": "label_left_yaw",
-    "left_turn": "label_left_turn",
-    "left90": "label_left90",
-    "right_yaw": "label_right_yaw",
-    "right_turn": "label_right_turn",
-    "right90": "label_right90",
-    "up": "label_up",
-    "down": "label_down",
+    "left_yaw": "left",
+    "left_turn": "left_turn",
+    "left90": "left_turn",
+    "right_yaw": "right",
+    "right_turn": "right_turn",
+    "right90": "right_turn",
+    "up": "up",
+    "down": "down",
+}
+SIGN_ASSET_ALIASES = {
+    "left_yaw": ("left_turn", "left"),
+    "left_turn": ("left_turn", "left"),
+    "left90": ("left_turn", "left"),
+    "right_yaw": ("right_turn", "right"),
+    "right_turn": ("right_turn", "right"),
+    "right90": ("right_turn", "right"),
+    "up": ("up",),
+    "down": ("down",),
 }
 TARGET_TAG = "target_people"
 
@@ -57,6 +67,26 @@ def state_yaw_deg(states: list[dict[str, Any]], index: int) -> float:
     return 0.0
 
 
+def path_yaw_deg(states: list[dict[str, Any]], index: int) -> float:
+    """Return the local horizontal route heading, independent of camera yaw."""
+    position = states[index]["position"]
+    for next_index in range(index + 1, len(states)):
+        next_position = states[next_index]["position"]
+        if math.hypot(
+            float(next_position[0]) - float(position[0]),
+            float(next_position[1]) - float(position[1]),
+        ) > 1e-6:
+            return yaw_to_target_deg(position, next_position)
+    for previous_index in range(index - 1, -1, -1):
+        previous_position = states[previous_index]["position"]
+        if math.hypot(
+            float(position[0]) - float(previous_position[0]),
+            float(position[1]) - float(previous_position[1]),
+        ) > 1e-6:
+            return yaw_to_target_deg(previous_position, position)
+    return state_yaw_deg(states, index)
+
+
 def _tag_from_motion(d_yaw_deg: float, slope_m: float) -> tuple[str | None, float, str]:
     if d_yaw_deg >= YAW_LARGE:
         return "right90", abs(d_yaw_deg), f"right turn {d_yaw_deg:.1f} deg"
@@ -80,7 +110,8 @@ def _tag_from_motion(d_yaw_deg: float, slope_m: float) -> tuple[str | None, floa
 def route_motion_features(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not states:
         return []
-    yaws = [state_yaw_deg(states, i) for i in range(len(states))]
+    # Beacons describe the route, not transient camera/body yaw stored in a frame.
+    yaws = [path_yaw_deg(states, i) for i in range(len(states))]
     features: list[dict[str, Any]] = []
     prev_pos = states[0]["position"]
     prev_yaw = yaws[0]
@@ -159,13 +190,20 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     rng = random.Random(seed)
 
     features = route_motion_features(states)
+    allowed_tags = {
+        str(tag)
+        for tag in cfg.get("allowed_tags", SIGN_ASSET_BASE.keys())
+        if str(tag) in SIGN_ASSET_BASE
+    }
+    if not allowed_tags:
+        allowed_tags = set(SIGN_ASSET_BASE)
     start_margin = int(cfg.get("start_margin_steps", 1))
     end_margin = int(cfg.get("end_margin_steps", 2))
     min_gap = int(cfg.get("min_gap_steps", max(2, len(states) // max(count + 2, 3))))
     candidates = [
         item
         for item in features[start_margin : max(start_margin, len(features) - end_margin)]
-        if item["tag"] in SIGN_ASSET_BASE and item["score"] > 0.0
+        if item["tag"] in allowed_tags and item["score"] > 0.0
     ]
     candidates.sort(key=lambda item: (-float(item["score"]), int(item["index"])))
     pool = candidates[: max(count * 4, count)]
@@ -180,20 +218,36 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
             selected.append(item)
             selected_indices.append(int(item["index"]))
 
-    fallback_tags = list(cfg.get("fallback_tags", ["left_yaw", "right_yaw", "up", "down"]))
+    straight_tag = str(cfg.get("straight_tag", "up"))
+    can_place_straight = straight_tag in allowed_tags
     for idx in _fallback_indices(len(states), count, start_margin, end_margin):
         if len(selected) >= count:
             break
         if not _far_enough(idx, selected_indices, min_gap):
             continue
         feat = features[idx]
-        tag = feat.get("tag") if feat.get("tag") in SIGN_ASSET_BASE else rng.choice(fallback_tags)
-        selected.append({**feat, "tag": tag, "score": float(feat.get("score", 0.0)), "reason": "evenly spaced route beacon"})
+        tag = feat.get("tag") if feat.get("tag") in allowed_tags else None
+        if tag is None:
+            if not can_place_straight:
+                continue
+            tag = straight_tag
+        selected.append(
+            {
+                **feat,
+                "tag": tag,
+                "score": float(feat.get("score", 0.0)),
+                "reason": "straight route" if tag == straight_tag else str(feat.get("reason", "route cue")),
+            }
+        )
         selected_indices.append(idx)
 
     selected.sort(key=lambda item: int(item["index"]))
     preset = dict(DIFFICULTY_PRESETS.get(str(episode.get("difficulty", "Normal")), DIFFICULTY_PRESETS["Normal"]))
     preset.update(cfg.get("preset_override", {}) or {})
+    scene_id = str(episode.get("scene_id", ""))
+    ground_z_by_scene = dict(cfg.get("ground_z_ned_by_scene", {}) or {})
+    ground_z_value = ground_z_by_scene.get(scene_id, cfg.get("ground_z_ned"))
+    ground_z_ned = float(ground_z_value) if ground_z_value is not None else None
     lateral_lo, lateral_hi = preset.get("lateral", (-7.0, -3.0))
     lookback_steps = int(cfg.get("lookback_steps", 2))
     distance_jitter = float(cfg.get("distance_jitter_m", 3.0))
@@ -205,12 +259,17 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
         ref = features[ref_idx]
         forward = float(preset.get("distance", 45.0)) + rng.uniform(-distance_jitter, distance_jitter)
         lateral = rng.uniform(float(lateral_lo), float(lateral_hi))
+        vertical_ned_m = (
+            ground_z_ned - float(ref["position"][2])
+            if ground_z_ned is not None
+            else float(preset.get("vertical_ned", 10.0))
+        )
         pose = pose_from_path_point(
             position=ref["position"],
             yaw_deg=float(ref["yaw_deg"]),
             forward_m=forward,
             lateral_m=lateral,
-            vertical_ned_m=float(preset.get("vertical_ned", 10.0)),
+            vertical_ned_m=vertical_ned_m,
             yaw_add_deg=float(cfg.get("yaw_add_deg", 90.0)),
         )
         placements.append(
@@ -223,7 +282,7 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "reason": item.get("reason", "route cue"),
                 "forward_m": forward,
                 "lateral_m": lateral,
-                "vertical_ned_m": float(preset.get("vertical_ned", 10.0)),
+                "vertical_ned_m": vertical_ned_m,
                 **pose,
             }
         )
@@ -231,12 +290,13 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     if include_target:
         target_idx = len(states) - 1
         target_ref = features[target_idx]
+        target_vertical_ned_m = float(cfg.get("target_vertical_ned_m", 0.0))
         target_pose = pose_from_path_point(
             position=target_ref["position"],
             yaw_deg=float(target_ref["yaw_deg"]),
             forward_m=float(cfg.get("target_distance_m", 0.0)),
             lateral_m=float(cfg.get("target_lateral_m", 0.0)),
-            vertical_ned_m=float(cfg.get("target_vertical_ned_m", 0.0)),
+            vertical_ned_m=target_vertical_ned_m,
             yaw_add_deg=float(cfg.get("target_yaw_add_deg", 180.0)),
         )
         placements.append(
@@ -249,7 +309,7 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "reason": "end of route",
                 "forward_m": float(cfg.get("target_distance_m", 0.0)),
                 "lateral_m": float(cfg.get("target_lateral_m", 0.0)),
-                "vertical_ned_m": float(cfg.get("target_vertical_ned_m", 0.0)),
+                "vertical_ned_m": target_vertical_ned_m,
                 **target_pose,
             }
         )

@@ -114,26 +114,37 @@ Install the CUDA-specific PyTorch build first if the default wheel does not matc
 
 ## Ground-Truth Trajectory Replay
 
-On Windows, the following commands run **Ground-Truth Trajectory Replay** (a reference oracle) using the recorded ground-truth waypoint sequence. This diagnostic validates AirSim coordinate alignment, beacon/target placement, episode transitions, and metric logging. It is not a learned navigation baseline and should not be included as a competing method in benchmark tables. Select the execution mode with `EVAL_MODE`.
+Online evaluation requires the matching AirSim/Unreal scene to be running. After extracting the separately downloaded simulator package into `simulator_environments/`, launch the default Urban scene with:
+
+~~~powershell
+cd VoLN-UAV
+.\scripts\launch_simulator.cmd --scene BrushifyUrban --env-root simulator_environments
+~~~
+
+The launcher resolves the scene executable from `configs/airsim_scene_mapping_dataset_release.json` and waits until the AirSim RPC port is ready. Keep the simulator open while evaluation is running. Use `--env-root` when the simulator package is stored elsewhere.
+
+The following commands run **Ground-Truth Trajectory Replay** (a reference oracle) using the recorded ground-truth waypoint sequence. This diagnostic validates AirSim coordinate alignment, beacon/target placement, episode transitions, and metric logging. It is not a learned navigation baseline and should not be included as a competing method in benchmark tables. The wrapper reads `data/benchmark/episodes.jsonl` and selects the released `BrushifyUrban` training trajectories by default; set `EPISODES_FILE` or `SCENE` to override either choice. Select the execution mode with `EVAL_MODE`.
 
 <details open>
 <summary><strong>Ground-truth trajectory replay — normal speed</strong></summary>
 
 ~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
+cd VoLN-UAV
 
 $env:BASELINE="reference"
 $env:TRIALS="10"
 $env:EVAL_MODE="normal"
+$env:EPISODES_FILE="episodes.jsonl"
+$env:SCENE="BrushifyUrban"
 
 .\scripts\run_online_baseline.cmd `
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir YOUR_WORK_DIR/reference_test_10_normal
+  --work-dir runs/reference_test_10_normal
 ~~~
 
-This mode uses AirSim `move_to_position` commands and preserves normal vehicle motion.
+This mode teleports the vehicle to the exact episode start, clears residual motion, enters hover, and then follows the route with AirSim `move_to_position` commands. Route cues use direction-icon assets rather than text-label beacons. After the final waypoint, the vehicle brakes to zero velocity and remains hovering.
 
 </details>
 
@@ -141,17 +152,19 @@ This mode uses AirSim `move_to_position` commands and preserves normal vehicle m
 <summary><strong>Ground-truth trajectory replay — fast diagnostic</strong></summary>
 
 ~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
+cd VoLN-UAV
 
 $env:BASELINE="reference"
 $env:TRIALS="10"
 $env:EVAL_MODE="fast"
+$env:EPISODES_FILE="episodes.jsonl"
+$env:SCENE="BrushifyUrban"
 
 .\scripts\run_online_baseline.cmd `
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir YOUR_WORK_DIR/reference_test_10_fast
+  --work-dir runs/reference_test_10_fast
 ~~~
 
 This mode uses `setVehiclePose` teleportation, pose-only reset, zero settling time, and a 10 m maximum teleport step.
@@ -191,6 +204,15 @@ AirSim preflight and closed-loop evaluation:
 ~~~bash
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --preflight
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --device cuda
+~~~
+
+The default controller is `random`, which provides a checkpoint-free smoke test. To evaluate VoLN-MLLM, select the learned policy explicitly:
+
+~~~bash
+python -m voln_uav.cli.eval_airsim \
+  --config configs/eval_airsim_dataset_release.yaml \
+  --controller policy \
+  --device cuda
 ~~~
 
 Run all manuscript methods on Validation-Seen and Test-Unseen:
@@ -258,7 +280,7 @@ Compare available closed-loop runs against the reported table:
 python scripts/compile_experiment_results.py \
   --results configs/experiment_results.yaml \
   --output-dir results/experiments \
-  --runs-root D:/VoLN_dataset/VoLN-UAV-runs \
+  --runs-root runs \
   --backend airsim
 ~~~
 

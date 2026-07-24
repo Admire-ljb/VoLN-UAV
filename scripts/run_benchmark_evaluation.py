@@ -37,7 +37,7 @@ def main() -> None:
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--python", default=sys.executable)
-    parser.add_argument("--output-root", default="D:/VoLN_dataset/VoLN-UAV-runs")
+    parser.add_argument("--output-root", default="runs")
     parser.add_argument(
         "--scenes",
         nargs="+",
@@ -99,8 +99,8 @@ def main() -> None:
                 command.append("--allow-partial-diagnostic")
             if args.strict_scenes:
                 command.append("--strict-scenes")
-            if method == "random":
-                command.extend(["--controller", "random"])
+            if args.backend == "airsim":
+                command.extend(["--controller", "random" if method == "random" else "policy"])
             _run(command, env, args.dry_run)
 
 

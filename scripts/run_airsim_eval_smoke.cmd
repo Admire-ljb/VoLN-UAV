@@ -1,8 +1,12 @@
 @echo off
 setlocal
 cd /d %~dp0\..
-if "%PYTHON%"=="" set PYTHON=C:\Users\ljb\.conda\envs\dinov3\python.exe
+if "%PYTHON%"=="" set PYTHON=python
 if "%CONFIG%"=="" set CONFIG=configs\eval_airsim_smoke_takeoff_local.yaml
 if "%DEVICE%"=="" set DEVICE=cuda
-set PYTHONPATH=src;D:\VoLN_dataset\.pydeps
+if "%PYTHONPATH%"=="" (
+  set "PYTHONPATH=src"
+) else (
+  set "PYTHONPATH=src;%PYTHONPATH%"
+)
 "%PYTHON%" -m voln_uav.cli.eval_airsim --config "%CONFIG%" --device %DEVICE%

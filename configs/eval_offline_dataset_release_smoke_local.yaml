@@ -1,10 +1,10 @@
 seed: 7
-benchmark_root: D:/VoLN_dataset/VoLN-UAV-Dataset-release-full/benchmark
+benchmark_root: data/benchmark
 episodes_file: test.jsonl
 semantic_bank: semantic_bank/categories.txt
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_dataset_release/adapter_last.pt
-planner_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/planner_dataset_release/planner_last.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/eval_offline_dataset_release_smoke
+adapter_ckpt: runs/adapter_dataset_release/adapter_last.pt
+planner_ckpt: runs/planner_dataset_release/planner_last.pt
+work_dir: runs/eval_offline_dataset_release_smoke
 budget_sec: 2.0
 max_steps: 128
 success_radius: 20.0

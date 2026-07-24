@@ -109,26 +109,37 @@ pip install -e .
 
 ## 真值轨迹回放
 
-在 Windows 上，下面两个命令运行 **Ground-Truth Trajectory Replay（真值轨迹回放）**。它直接使用数据集中记录的真值 waypoint，属于 reference oracle，仅用于验证 AirSim 坐标对齐、beacon/target 放置、episode 切换和指标记录。它不是学习式导航基线，不应作为参评方法写入基准对比表。通过 `EVAL_MODE` 选择执行模式。
+在线评估前必须打开与轨迹对应的 AirSim/Unreal 场景。将单独下载的仿真环境解压到 `simulator_environments/` 后，可用以下脚本启动默认 Urban 场景：
+
+~~~powershell
+cd VoLN-UAV
+.\scripts\launch_simulator.cmd --scene BrushifyUrban --env-root simulator_environments
+~~~
+
+启动脚本会根据 `configs/airsim_scene_mapping_dataset_release.json` 定位场景程序，并等待 AirSim RPC 端口就绪。评估期间请保持仿真器运行；如果环境位于其他目录，通过 `--env-root` 指定。
+
+下面两个命令运行 **Ground-Truth Trajectory Replay（真值轨迹回放）**。它直接使用数据集中记录的真值 waypoint，属于 reference oracle，仅用于验证 AirSim 坐标对齐、beacon/target 放置、episode 切换和指标记录。它不是学习式导航基线，不应作为参评方法写入基准对比表。脚本默认读取 `data/benchmark/episodes.jsonl` 中已发布的 `BrushifyUrban` 训练轨迹；可通过 `EPISODES_FILE` 或 `SCENE` 覆盖，通过 `EVAL_MODE` 选择执行模式。
 
 <details open>
 <summary><strong>真值轨迹回放——正常速度</strong></summary>
 
 ~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
+cd VoLN-UAV
 
 $env:BASELINE="reference"
 $env:TRIALS="10"
 $env:EVAL_MODE="normal"
+$env:EPISODES_FILE="episodes.jsonl"
+$env:SCENE="BrushifyUrban"
 
 .\scripts\run_online_baseline.cmd `
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir YOUR_WORK_DIR/reference_test_10_normal
+  --work-dir runs/reference_test_10_normal
 ~~~
 
-该模式使用 AirSim `move_to_position` 指令，保留正常的无人机运动过程。
+该模式先将无人机瞬移至 episode 的精确起点、清除残余运动并进入悬停，再使用 AirSim `move_to_position` 指令沿轨迹正常运动。路线提示仅使用方向图标资产，不使用文字标签 beacon；到达最后一个 waypoint 后，无人机会制动至零速度并持续悬停。
 
 </details>
 
@@ -136,17 +147,19 @@ $env:EVAL_MODE="normal"
 <summary><strong>真值轨迹回放——快速诊断</strong></summary>
 
 ~~~powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
+cd VoLN-UAV
 
 $env:BASELINE="reference"
 $env:TRIALS="10"
 $env:EVAL_MODE="fast"
+$env:EPISODES_FILE="episodes.jsonl"
+$env:SCENE="BrushifyUrban"
 
 .\scripts\run_online_baseline.cmd `
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir YOUR_WORK_DIR/reference_test_10_fast
+  --work-dir runs/reference_test_10_fast
 ~~~
 
 该模式使用 `setVehiclePose` 瞬移、仅位姿复位、零等待时间，并将单次最大瞬移距离设为 10 m。
@@ -186,6 +199,15 @@ AirSim 预检查与闭环评估：
 ~~~bash
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --preflight
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --device cuda
+~~~
+
+默认控制器为 `random`，无需 checkpoint，适合先检查评估链路。评估 VoLN-MLLM 时需要显式选择学习式策略：
+
+~~~bash
+python -m voln_uav.cli.eval_airsim \
+  --config configs/eval_airsim_dataset_release.yaml \
+  --controller policy \
+  --device cuda
 ~~~
 
 在 Validation-Seen 和 Test-Unseen 上运行全部论文方法：
@@ -247,7 +269,7 @@ python scripts/compile_experiment_results.py \
 python scripts/compile_experiment_results.py \
   --results configs/experiment_results.yaml \
   --output-dir results/experiments \
-  --runs-root D:/VoLN_dataset/VoLN-UAV-runs \
+  --runs-root runs \
   --backend airsim
 ~~~
 

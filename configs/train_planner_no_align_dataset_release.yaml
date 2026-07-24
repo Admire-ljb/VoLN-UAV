@@ -1,5 +1,5 @@
 extends: train_planner_dataset_release.yaml
-adapter_ckpt: D:/VoLN_dataset/VoLN-UAV-runs/adapter_no_align_paper/adapter_best.pt
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/planner_no_align_paper
+adapter_ckpt: runs/adapter_no_align/adapter_best.pt
+work_dir: runs/planner_no_align
 model:
   ablation: no_align

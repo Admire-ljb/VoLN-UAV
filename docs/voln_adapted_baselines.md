@@ -38,7 +38,7 @@ All three baselines use the same paper action interface as the main planner:
 Use the existing planner training entry point and switch only `CONFIG`.
 
 ```powershell
-cd D:\VoLN_dataset\github-VoLN-UAV
+cd VoLN-UAV
 
 $env:CONFIG="configs\train_seq2seq_dataset_release.yaml"
 .\scripts\run_train_planner.cmd
@@ -52,9 +52,9 @@ $env:CONFIG="configs\train_lag_dataset_release.yaml"
 
 Each method writes to a separate run directory:
 
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_seq2seq_vg_paper`
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_cma_vg_paper`
-- `D:/VoLN_dataset/VoLN-UAV-runs/planner_lag_vg_paper`
+- `runs/planner_seq2seq_vg`
+- `runs/planner_cma_vg`
+- `runs/planner_lag_vg`
 
 ## Offline evaluation
 

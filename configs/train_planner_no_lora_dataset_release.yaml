@@ -1,5 +1,5 @@
 extends: train_planner_dataset_release.yaml
-work_dir: D:/VoLN_dataset/VoLN-UAV-runs/planner_no_lora_paper
+work_dir: runs/planner_no_lora
 model:
   ablation: no_lora
   lora_enabled: false
