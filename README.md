@@ -20,12 +20,12 @@
 
 <table>
   <tr>
-    <th width="50%">仿真环境</th>
-    <th width="50%">真机飞行</th>
+    <th width="50%">仿真第一视角</th>
+    <th width="50%">真机第一视角</th>
   </tr>
   <tr>
-    <td><img src="assets/readme/demos/simulation_demo.gif" alt="VoLN 仿真演示" width="100%"></td>
-    <td><img src="assets/readme/demos/physical_flight_demo.gif" alt="VoLN 真机飞行演示" width="100%"></td>
+    <td><img src="assets/readme/demos/simulation_demo.gif" alt="VoLN 仿真第一视角演示" width="100%"></td>
+    <td><img src="assets/readme/demos/physical_flight_demo.gif" alt="VoLN 真机第一视角演示" width="100%"></td>
   </tr>
 </table>
 
