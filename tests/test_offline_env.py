@@ -11,7 +11,7 @@ def _episode() -> dict:
         {"position": [10.0, 0.0, 0.0], "image": "b.png"},
         {"position": [20.0, 0.0, 0.0], "image": "c.png"},
     ]
-    return {"episode_id": "toy", "states": states, "path_length": 20.0}
+    return {"episode_id": "unit_episode", "states": states, "path_length": 20.0}
 
 
 def test_invalid_action_holds_position() -> None:
