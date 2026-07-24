@@ -126,7 +126,7 @@ $env:EVAL_MODE="normal"
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_normal
+  --work-dir YOUR_WORK_DIR/reference_test_10_normal
 ~~~
 
 该模式使用 AirSim `move_to_position` 指令，保留正常的无人机运动过程。
@@ -147,7 +147,7 @@ $env:EVAL_MODE="fast"
   --episode-index 0 `
   --episode-stride 1 `
   --reference-stride 1 `
-  --work-dir D:\VoLN_dataset\VoLN-UAV-runs\reference_test_10_fast
+  --work-dir YOUR_WORK_DIR/reference_test_10_fast
 ~~~
 
 该模式使用 `setVehiclePose` 瞬移、仅位姿复位、零等待时间，并将单次最大瞬移距离设为 10 m。
