@@ -1,0 +1,17 @@
+{
+  "schema": "voln_uav.metrics.v1",
+  "status": "aggregate_result",
+  "evaluation_backend": "author_provided_aggregate",
+  "source_file": "../../../../source/five_runs.xlsx",
+  "split": "Test-Unseen",
+  "variant": "No-LoRA",
+  "run": 4,
+  "episodes": null,
+  "CT_mean": 1.4452878339410604,
+  "EER": 0.05927189967591704,
+  "NE": 179.64897154993187,
+  "SR": 0.029649794743793065,
+  "OSR": 0.07885850199182172,
+  "nDTW": 0.2753677461086174,
+  "SPL": 0.01337900380300384
+}

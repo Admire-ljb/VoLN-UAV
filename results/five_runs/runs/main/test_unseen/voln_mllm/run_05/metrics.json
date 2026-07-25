@@ -1,0 +1,36 @@
+{
+  "schema": "voln_uav.metrics.v1",
+  "status": "aggregate_result",
+  "evaluation_backend": "author_provided_aggregate",
+  "source_file": "../../../../../source/five_runs.xlsx",
+  "split": "Test-Unseen",
+  "method": "VoLN-MLLM",
+  "run": 5,
+  "episodes": null,
+  "by_difficulty": {
+    "Easy": {
+      "episodes": null,
+      "NE": 94.59813211805437,
+      "SR": 0.07465433041922526,
+      "OSR": 0.1476161396394307,
+      "nDTW": 0.532727063793809,
+      "SPL": 0.0555992247961137
+    },
+    "Normal": {
+      "episodes": null,
+      "NE": 129.5220015927418,
+      "SR": 0.04493857048204013,
+      "OSR": 0.10136811581759998,
+      "nDTW": 0.40965184935622007,
+      "SPL": 0.0373444398059187
+    },
+    "Hard": {
+      "episodes": null,
+      "NE": 179.4535129893547,
+      "SR": 0.018474575758808332,
+      "OSR": 0.04606485120138011,
+      "nDTW": 0.2779873893938787,
+      "SPL": 0.008610340485761677
+    }
+  }
+}

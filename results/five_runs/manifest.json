@@ -1,0 +1,36 @@
+{
+  "schema": "voln_uav.five_run_results.v1",
+  "source": {
+    "file": "source/five_runs.xlsx",
+    "description": "Author-provided five-run aggregate workbook",
+    "record_level": "run-level aggregate metrics",
+    "episode_level_details_available": false
+  },
+  "runs": 5,
+  "storage_units": {
+    "NE": "m",
+    "CT": "s",
+    "SR": "fraction",
+    "OSR": "fraction",
+    "nDTW": "fraction",
+    "SPL": "fraction",
+    "EER": "fraction"
+  },
+  "display_units": {
+    "NE": "m",
+    "CT": "s",
+    "SR": "percent",
+    "OSR": "percent",
+    "nDTW": "percent",
+    "SPL": "percent",
+    "EER": "percent"
+  },
+  "files": {
+    "main_runs": "main_runs.csv",
+    "ablation_runs": "ablation_runs.csv",
+    "summary": "summary.json",
+    "summary_long": "summary_long.csv",
+    "rendered_summary": "summary.md",
+    "evaluator_style_runs": "runs/"
+  }
+}
