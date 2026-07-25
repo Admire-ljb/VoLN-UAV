@@ -13,6 +13,7 @@ from voln_uav.common.geometry import l2, path_length
 from voln_uav.common.io import ensure_dir, read_jsonl, write_json, write_jsonl
 from voln_uav.common.navigation_frames import body_point_to_world
 from voln_uav.baselines.random_policy import RandomPolicy
+from voln_uav.benchmark.beacon_protocol import validate_episode_task_beacons
 from voln_uav.evaluation.metrics import (
     METRIC_KEYS,
     aggregate_by_difficulty,
@@ -74,8 +75,41 @@ def filter_airsim_episodes(config: dict[str, Any], episodes: list[dict[str, Any]
     return selected
 
 
+def episode_task_beacon_readiness_issues(
+    config: dict[str, Any],
+    episodes: list[dict[str, Any]] | None,
+) -> list[str]:
+    beacon_cfg = dict(config.get("beacon_placement", {}) or {})
+    if not bool(beacon_cfg.get("enabled", False)):
+        return []
+    issues: list[str] = []
+    source = str(beacon_cfg.get("source", ""))
+    if source != "episode_task_beacons":
+        issues.append(
+            "AirSim online evaluation requires "
+            "beacon_placement.source=episode_task_beacons"
+        )
+        return issues
+    for legacy_key in ("count", "route_beacons_per_episode"):
+        if legacy_key in beacon_cfg:
+            issues.append(
+                f"Remove beacon_placement.{legacy_key}; active beacon count must "
+                "come from episode-level task_beacons"
+            )
+    for episode in episodes or []:
+        try:
+            validate_episode_task_beacons(episode, beacon_cfg)
+        except (TypeError, ValueError) as exc:
+            issues.append(str(exc))
+            if len(issues) >= 10:
+                issues.append("Additional episode task_beacon errors were omitted")
+                break
+    return issues
+
+
 def check_airsim_readiness(config: dict[str, Any], episodes: list[dict[str, Any]] | None = None) -> list[str]:
     issues: list[str] = []
+    issues.extend(episode_task_beacon_readiness_issues(config, episodes))
     if importlib.util.find_spec("airsim") is None:
         issues.append("Install the project dependencies, for example: pip install -e .")
 

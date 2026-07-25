@@ -5,6 +5,11 @@ import math
 import random
 from typing import Any
 
+from voln_uav.benchmark.beacon_protocol import (
+    task_beacon_route_index,
+    validate_episode_task_beacons,
+)
+
 SIGN_ASSET_BASE = {
     "left_yaw": "left",
     "left_turn": "left_turn",
@@ -26,6 +31,16 @@ SIGN_ASSET_ALIASES = {
     "down": ("down",),
 }
 TARGET_TAG = "target_people"
+SEMANTIC_SIGN_TAG = {
+    "turn-left": "left_turn",
+    "left-turn": "left_turn",
+    "turn-right": "right_turn",
+    "right-turn": "right_turn",
+    "ascend": "up",
+    "up": "up",
+    "descend": "down",
+    "down": "down",
+}
 
 DIFFICULTY_PRESETS = {
     "Easy": {"distance": 32.0, "lateral": (-5.0, -2.0), "vertical_ned": 8.0},
@@ -160,6 +175,61 @@ def _fallback_indices(num_states: int, count: int, start_margin: int, end_margin
     return [min(hi, max(lo, round((i + 1) * hi / (count + 1)))) for i in range(count)]
 
 
+def _task_beacon_tag(
+    beacon: dict[str, Any],
+    feature: dict[str, Any],
+    straight_tag: str,
+) -> str:
+    for key in ("asset_tag", "tag"):
+        explicit = str(beacon.get(key, "")).strip()
+        if explicit in SIGN_ASSET_BASE:
+            return explicit
+    semantic_type = str(beacon.get("semantic_type", "")).strip().lower()
+    semantic_tag = SEMANTIC_SIGN_TAG.get(semantic_type)
+    if semantic_tag is not None:
+        return semantic_tag
+    motion_tag = feature.get("tag")
+    if motion_tag in SIGN_ASSET_BASE:
+        return str(motion_tag)
+    if straight_tag not in SIGN_ASSET_BASE:
+        raise ValueError(f"Unsupported straight beacon tag: {straight_tag!r}")
+    return straight_tag
+
+
+def _features_from_episode_task_beacons(
+    episode: dict[str, Any],
+    cfg: dict[str, Any],
+    features: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    task_beacons, _expected_count, _path_length_m = validate_episode_task_beacons(
+        episode,
+        cfg,
+    )
+    straight_tag = str(cfg.get("straight_tag", "up"))
+    selected: list[dict[str, Any]] = []
+    for order, beacon in enumerate(task_beacons):
+        index = task_beacon_route_index(beacon)
+        feature = features[index]
+        tag = _task_beacon_tag(beacon, feature, straight_tag)
+        selected.append(
+            {
+                **feature,
+                "tag": tag,
+                "reason": str(
+                    beacon.get(
+                        "reason",
+                        feature.get("reason", "episode task beacon"),
+                    )
+                ),
+                "task_beacon_id": str(beacon["beacon_id"]),
+                "task_beacon_order": order,
+                "semantic_type": str(beacon["semantic_type"]),
+                "source": "episode_task_beacons",
+            }
+        )
+    return selected
+
+
 def pose_from_path_point(
     position: list[float],
     yaw_deg: float,
@@ -183,63 +253,82 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     if len(states) < 2:
         return []
 
-    count = int(cfg.get("count", cfg.get("route_beacons_per_episode", 4)))
-    count = max(count, 0)
     include_target = bool(cfg.get("include_target", True))
     seed = stable_episode_seed(int(cfg.get("random_seed", base_seed)), str(episode.get("episode_id", "episode")))
     rng = random.Random(seed)
 
     features = route_motion_features(states)
-    allowed_tags = {
-        str(tag)
-        for tag in cfg.get("allowed_tags", SIGN_ASSET_BASE.keys())
-        if str(tag) in SIGN_ASSET_BASE
-    }
-    if not allowed_tags:
-        allowed_tags = set(SIGN_ASSET_BASE)
-    start_margin = int(cfg.get("start_margin_steps", 1))
-    end_margin = int(cfg.get("end_margin_steps", 2))
-    min_gap = int(cfg.get("min_gap_steps", max(2, len(states) // max(count + 2, 3))))
-    candidates = [
-        item
-        for item in features[start_margin : max(start_margin, len(features) - end_margin)]
-        if item["tag"] in allowed_tags and item["score"] > 0.0
-    ]
-    candidates.sort(key=lambda item: (-float(item["score"]), int(item["index"])))
-    pool = candidates[: max(count * 4, count)]
-    rng.shuffle(pool)
-
-    selected: list[dict[str, Any]] = []
-    selected_indices: list[int] = []
-    for item in pool:
-        if len(selected) >= count:
-            break
-        if _far_enough(int(item["index"]), selected_indices, min_gap):
-            selected.append(item)
-            selected_indices.append(int(item["index"]))
-
-    straight_tag = str(cfg.get("straight_tag", "up"))
-    can_place_straight = straight_tag in allowed_tags
-    for idx in _fallback_indices(len(states), count, start_margin, end_margin):
-        if len(selected) >= count:
-            break
-        if not _far_enough(idx, selected_indices, min_gap):
-            continue
-        feat = features[idx]
-        tag = feat.get("tag") if feat.get("tag") in allowed_tags else None
-        if tag is None:
-            if not can_place_straight:
-                continue
-            tag = straight_tag
-        selected.append(
-            {
-                **feat,
-                "tag": tag,
-                "score": float(feat.get("score", 0.0)),
-                "reason": "straight route" if tag == straight_tag else str(feat.get("reason", "route cue")),
-            }
+    source = str(cfg.get("source", "generated_from_route"))
+    if source == "episode_task_beacons":
+        selected = _features_from_episode_task_beacons(episode, cfg, features)
+    elif source == "generated_from_route":
+        count = max(
+            int(cfg.get("count", cfg.get("route_beacons_per_episode", 4))),
+            0,
         )
-        selected_indices.append(idx)
+        allowed_tags = {
+            str(tag)
+            for tag in cfg.get("allowed_tags", SIGN_ASSET_BASE.keys())
+            if str(tag) in SIGN_ASSET_BASE
+        }
+        if not allowed_tags:
+            allowed_tags = set(SIGN_ASSET_BASE)
+        start_margin = int(cfg.get("start_margin_steps", 1))
+        end_margin = int(cfg.get("end_margin_steps", 2))
+        min_gap = int(
+            cfg.get("min_gap_steps", max(2, len(states) // max(count + 2, 3)))
+        )
+        candidates = [
+            item
+            for item in features[
+                start_margin : max(start_margin, len(features) - end_margin)
+            ]
+            if item["tag"] in allowed_tags and item["score"] > 0.0
+        ]
+        candidates.sort(key=lambda item: (-float(item["score"]), int(item["index"])))
+        pool = candidates[: max(count * 4, count)]
+        rng.shuffle(pool)
+
+        selected = []
+        selected_indices: list[int] = []
+        for item in pool:
+            if len(selected) >= count:
+                break
+            if _far_enough(int(item["index"]), selected_indices, min_gap):
+                selected.append(item)
+                selected_indices.append(int(item["index"]))
+
+        straight_tag = str(cfg.get("straight_tag", "up"))
+        can_place_straight = straight_tag in allowed_tags
+        for idx in _fallback_indices(len(states), count, start_margin, end_margin):
+            if len(selected) >= count:
+                break
+            if not _far_enough(idx, selected_indices, min_gap):
+                continue
+            feat = features[idx]
+            tag = feat.get("tag") if feat.get("tag") in allowed_tags else None
+            if tag is None:
+                if not can_place_straight:
+                    continue
+                tag = straight_tag
+            selected.append(
+                {
+                    **feat,
+                    "tag": tag,
+                    "score": float(feat.get("score", 0.0)),
+                    "reason": (
+                        "straight route"
+                        if tag == straight_tag
+                        else str(feat.get("reason", "route cue"))
+                    ),
+                }
+            )
+            selected_indices.append(idx)
+    else:
+        raise ValueError(
+            "beacon_placement.source must be 'episode_task_beacons' or "
+            f"'generated_from_route', got {source!r}"
+        )
 
     selected.sort(key=lambda item: int(item["index"]))
     preset = dict(DIFFICULTY_PRESETS.get(str(episode.get("difficulty", "Normal")), DIFFICULTY_PRESETS["Normal"]))
@@ -283,6 +372,16 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "forward_m": forward,
                 "lateral_m": lateral,
                 "vertical_ned_m": vertical_ned_m,
+                **(
+                    {
+                        "task_beacon_id": item["task_beacon_id"],
+                        "task_beacon_order": int(item["task_beacon_order"]),
+                        "semantic_type": item["semantic_type"],
+                        "source": item["source"],
+                    }
+                    if "task_beacon_id" in item
+                    else {}
+                ),
                 **pose,
             }
         )

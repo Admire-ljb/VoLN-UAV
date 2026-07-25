@@ -125,6 +125,12 @@ The launcher resolves the scene executable from `configs/airsim_scene_mapping_da
 
 The following commands run **Ground-Truth Trajectory Replay** (a reference oracle) using the recorded ground-truth waypoint sequence. This diagnostic validates AirSim coordinate alignment, beacon/target placement, episode transitions, and metric logging. It is not a learned navigation baseline and should not be included as a competing method in benchmark tables. The wrapper reads `data/benchmark/episodes.jsonl` and selects the released `BrushifyUrban` training trajectories by default; set `EPISODES_FILE` or `SCENE` to override either choice. Select the execution mode with `EVAL_MODE`.
 
+Each episode stores one immutable `task_beacons` list. Active-beacon count is
+determined only by reference-path length: 3 for routes below 300 m, 4 for
+routes from 300 m to below 450 m, and 5 for routes of at least 450 m. Every
+online method reads this same episode-level list; the target is placed
+separately and is not counted as an active beacon.
+
 <details open>
 <summary><strong>Ground-truth trajectory replay — normal speed</strong></summary>
 

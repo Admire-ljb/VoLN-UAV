@@ -32,8 +32,13 @@ def test_voln_training_config_matches_paper_architecture():
 def test_benchmark_config_matches_beacon_count_protocol():
     benchmark = _load("benchmark_dataset_release.yaml")
 
-    assert benchmark["beacons"]["task_beacons_min_per_route"] == 3
-    assert benchmark["beacons"]["task_beacons_max_per_route"] == 5
+    assert benchmark["beacons"]["count_by_path_length"] == {
+        "easy_lt_m": 300.0,
+        "normal_lt_m": 450.0,
+        "easy": 3,
+        "normal": 4,
+        "hard": 5,
+    }
     assert benchmark["beacons"]["background_per_scene"] == 150
 
 
@@ -99,3 +104,35 @@ def test_online_controller_defaults_are_explicit():
         "eval_airsim_clip_input_dataset_release.yaml",
     ):
         assert _load(name)["controller"] == "policy", name
+
+
+def test_all_online_methods_share_episode_level_active_beacon_protocol():
+    names = [
+        "eval_airsim_dataset_release.yaml",
+        "eval_airsim_seq2seq_dataset_release.yaml",
+        "eval_airsim_cma_dataset_release.yaml",
+        "eval_airsim_lag_dataset_release.yaml",
+        "eval_airsim_no_align_dataset_release.yaml",
+        "eval_airsim_no_lora_dataset_release.yaml",
+        "eval_airsim_clip_input_dataset_release.yaml",
+        "eval_airsim_smoke_local.yaml",
+        "eval_airsim_policy_smoke_local.yaml",
+        "eval_airsim_progress_check_local.yaml",
+        "eval_airsim_smoke_running_local.yaml",
+        "eval_airsim_smoke_takeoff_local.yaml",
+    ]
+    configs = {name: _load(name) for name in names}
+    expected = configs[names[0]]["beacon_placement"]
+
+    assert expected["source"] == "episode_task_beacons"
+    assert expected["count_by_path_length"] == {
+        "easy_lt_m": 300.0,
+        "normal_lt_m": 450.0,
+        "easy": 3,
+        "normal": 4,
+        "hard": 5,
+    }
+    assert "count" not in expected
+    assert "route_beacons_per_episode" not in expected
+    for name, config in configs.items():
+        assert config["beacon_placement"] == expected, name

@@ -1,3 +1,5 @@
+extends: airsim_active_beacon_protocol.yaml
+
 seed: 7
 benchmark_root: data/benchmark
 episodes_file: test.jsonl
@@ -30,16 +32,6 @@ min_steps_before_stop: 3
 
 # Leave auto_launch false if the AirSim/UE scene is already running.
 # Set env.auto_launch true and point root_path/scene_mapping to your local env executables.
-beacon_placement:
-  enabled: true
-  count: 4
-  include_target: true
-  hide_all_available: true
-  start_margin_steps: 1
-  end_margin_steps: 2
-  lookback_steps: 2
-  distance_jitter_m: 3.0
-  hidden_z: -500.0
 env:
   auto_launch: false
   root_path: simulator_environments

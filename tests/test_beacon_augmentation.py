@@ -28,11 +28,43 @@ def test_generate_beacons_uses_current_semantic_labels(tmp_path):
         rng=random.Random(7),
     )
 
-    assert task_beacons
+    assert len(task_beacons) == 3
+    assert [item["route_index"] for item in task_beacons] == [2, 5, 9]
     assert bg_beacons
     assert all(item["semantic_type"] in semantic_bank for item in task_beacons)
     assert all(item["semantic_type"] in semantic_bank for item in bg_beacons)
     assert any(item["semantic_type"] == "junction" for item in bg_beacons)
+
+
+def test_generate_beacons_deterministically_fills_missing_decision_points(tmp_path):
+    first, _ = generate_beacons(
+        scene_id="scene_fill",
+        scene_type="urban",
+        decision_points=[4],
+        route_length=12,
+        output_root=tmp_path,
+        task_beacons_per_route=4,
+        background_per_scene=0,
+        semantic_bank=["road-sign"],
+        rng=random.Random(7),
+    )
+    second, _ = generate_beacons(
+        scene_id="scene_fill",
+        scene_type="urban",
+        decision_points=[4],
+        route_length=12,
+        output_root=tmp_path,
+        task_beacons_per_route=4,
+        background_per_scene=0,
+        semantic_bank=["road-sign"],
+        rng=random.Random(999),
+    )
+
+    assert [item["route_index"] for item in first] == [
+        item["route_index"] for item in second
+    ]
+    assert len(first) == 4
+    assert len({item["route_index"] for item in first}) == 4
 
 
 def test_generate_beacons_respects_task_allowlist(tmp_path):

@@ -12,6 +12,10 @@ from voln_uav.benchmark.beacon_augmentation import (
     generate_scene_background_beacons,
     visible_beacon_labels,
 )
+from voln_uav.benchmark.beacon_protocol import (
+    task_beacon_count_for_path_length,
+    validate_episode_task_beacons,
+)
 from voln_uav.benchmark.splitter import (
     assign_episode_splits_from_manifest,
     deduplicate_episodes,
@@ -95,33 +99,34 @@ class BenchmarkBuilder:
                 route,
                 min_separation_steps=int(self.cfg["beacons"]["min_separation_steps"]),
             )
-            default_task_beacons = int(
-                self.cfg["beacons"].get("task_beacons_per_route", 4)
+            beacon_count_cfg = dict(
+                self.cfg["beacons"].get("count_by_path_length", {}) or {}
             )
-            min_task_beacons = int(
-                self.cfg["beacons"].get(
-                    "task_beacons_min_per_route",
-                    default_task_beacons,
-                )
+            task_beacons_per_route = task_beacon_count_for_path_length(
+                route_len,
+                easy_lt_m=float(
+                    beacon_count_cfg.get(
+                        "easy_lt_m",
+                        self.cfg["difficulty"]["easy_lt"],
+                    )
+                ),
+                normal_lt_m=float(
+                    beacon_count_cfg.get(
+                        "normal_lt_m",
+                        self.cfg["difficulty"]["normal_lt"],
+                    )
+                ),
+                easy_count=int(beacon_count_cfg.get("easy", 3)),
+                normal_count=int(beacon_count_cfg.get("normal", 4)),
+                hard_count=int(beacon_count_cfg.get("hard", 5)),
             )
-            max_task_beacons = int(
-                self.cfg["beacons"].get(
-                    "task_beacons_max_per_route",
-                    default_task_beacons,
-                )
-            )
-            if min_task_beacons < 0 or max_task_beacons < min_task_beacons:
-                raise ValueError("Invalid active-beacon count range")
             task_beacons, background_beacons = generate_beacons(
                 scene_id=scene_id,
                 scene_type=str(scene_meta.get("scene_type", "unknown")),
                 decision_points=decision_points,
                 route_length=len(route["states"]),
                 output_root=self.output_root,
-                task_beacons_per_route=self.rng.randint(
-                    min_task_beacons,
-                    max_task_beacons,
-                ),
+                task_beacons_per_route=task_beacons_per_route,
                 background_per_scene=0,
                 semantic_bank=self.semantic_bank,
                 rng=self.rng,
@@ -156,6 +161,10 @@ class BenchmarkBuilder:
                 "background_beacons": background_beacons,
                 "states": route["states"],
             }
+            validate_episode_task_beacons(
+                episode,
+                {"count_by_path_length": beacon_count_cfg},
+            )
             episodes.append(episode)
 
         episodes = deduplicate_episodes(

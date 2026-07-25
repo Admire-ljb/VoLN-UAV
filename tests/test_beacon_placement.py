@@ -99,3 +99,55 @@ def test_straight_route_ignores_recorded_camera_yaw_and_uses_straight_icons() ->
     assert len(placements) == 3
     assert all(item["tag"] == "up" for item in placements)
     assert all(item["reason"] == "straight route" for item in placements)
+
+
+def test_online_placement_uses_exact_episode_task_beacons() -> None:
+    episode = {
+        **_episode(),
+        "path_length": 350.0,
+        "task_beacons": [
+            {
+                "beacon_id": f"task_{order}",
+                "route_index": route_index,
+                "visible_at": route_index,
+                "semantic_type": semantic_type,
+            }
+            for order, (route_index, semantic_type) in enumerate(
+                [
+                    (1, "road-sign"),
+                    (2, "turn-right"),
+                    (4, "road-sign"),
+                    (5, "turn-left"),
+                ]
+            )
+        ],
+    }
+    placements = plan_route_beacons(
+        episode,
+        {
+            "source": "episode_task_beacons",
+            "include_target": True,
+            "distance_jitter_m": 0.0,
+        },
+        base_seed=7,
+    )
+
+    active = [item for item in placements if item["kind"] == "route_beacon"]
+    assert [item["task_beacon_id"] for item in active] == [
+        "task_0",
+        "task_1",
+        "task_2",
+        "task_3",
+    ]
+    assert [item["index"] for item in active] == [1, 2, 4, 5]
+    assert all(item["source"] == "episode_task_beacons" for item in active)
+    assert len([item for item in placements if item["kind"] == "target"]) == 1
+
+
+def test_online_placement_rejects_missing_episode_task_beacons() -> None:
+    with pytest.raises(ValueError, match="missing list-valued task_beacons"):
+        plan_route_beacons(
+            {**_episode(), "path_length": 250.0},
+            {"source": "episode_task_beacons"},
+            base_seed=7,
+        )

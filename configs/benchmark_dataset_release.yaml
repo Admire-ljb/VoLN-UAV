@@ -33,8 +33,12 @@ goal_interface:
   num_beacons: 2
 
 beacons:
-  task_beacons_min_per_route: 3
-  task_beacons_max_per_route: 5
+  count_by_path_length:
+    easy_lt_m: 300.0
+    normal_lt_m: 450.0
+    easy: 3
+    normal: 4
+    hard: 5
   background_per_scene: 150
   min_separation_steps: 8
   task_category_allowlist:

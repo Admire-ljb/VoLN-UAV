@@ -78,14 +78,39 @@ def generate_beacons(
     if not task_choices:
         task_choices = ["beacon-blue", "beacon-red", "beacon-yellow"]
 
-    selected_points = decision_points[:task_beacons_per_route]
-    if len(selected_points) < task_beacons_per_route and route_length > 0:
-        needed = task_beacons_per_route - len(selected_points)
-        supplement = sorted(rng.sample(list(range(max(1, route_length - 1))), k=min(needed, max(1, route_length - 1))))
-        for idx in supplement:
-            if idx not in selected_points:
-                selected_points.append(idx)
-        selected_points = sorted(selected_points)[:task_beacons_per_route]
+    # The terminal route point is reserved for the target. Task beacons are
+    # immutable episode annotations: prefer route decision points, then fill
+    # deterministically with evenly spaced reference-path indices.
+    usable_points = list(range(max(route_length - 1, 0)))
+    if len(usable_points) < task_beacons_per_route:
+        raise ValueError(
+            f"Route has {route_length} states but requires "
+            f"{task_beacons_per_route} non-terminal task beacon positions"
+        )
+    selected_points: list[int] = []
+    for value in decision_points:
+        index = int(value)
+        if index in usable_points and index not in selected_points:
+            selected_points.append(index)
+        if len(selected_points) == task_beacons_per_route:
+            break
+    if len(selected_points) < task_beacons_per_route:
+        evenly_spaced = [
+            min(
+                usable_points[-1],
+                max(
+                    usable_points[0],
+                    round((order + 1) * (route_length - 1) / (task_beacons_per_route + 1)),
+                ),
+            )
+            for order in range(task_beacons_per_route)
+        ]
+        for index in [*evenly_spaced, *usable_points]:
+            if index not in selected_points:
+                selected_points.append(index)
+            if len(selected_points) == task_beacons_per_route:
+                break
+    selected_points.sort()
 
     for j, idx in enumerate(selected_points):
         category = task_choices[j % len(task_choices)]
@@ -99,6 +124,7 @@ def generate_beacons(
                 "cue_family": cue_family(category, relevant=True),
                 "relevant": True,
                 "relevance_rule": "episode_route",
+                "route_index": idx,
                 "visible_at": idx,
                 "template_image": str(template_path),
             }
