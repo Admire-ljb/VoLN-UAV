@@ -1,8 +1,7 @@
 {
   "schema": "voln_uav.five_run_results.v1",
   "source": {
-    "file": "source/five_runs.xlsx",
-    "description": "Author-provided five-run aggregate workbook",
+    "description": "Five-run aggregate evaluation records",
     "record_level": "run-level aggregate metrics",
     "episode_level_details_available": false
   },

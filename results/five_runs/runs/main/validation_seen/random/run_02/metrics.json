@@ -2,7 +2,6 @@
   "schema": "voln_uav.metrics.v1",
   "status": "aggregate_result",
   "evaluation_backend": "author_provided_aggregate",
-  "source_file": "../../../../../source/five_runs.xlsx",
   "split": "Validation-Seen",
   "method": "Random",
   "run": 2,
