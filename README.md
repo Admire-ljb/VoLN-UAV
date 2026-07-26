@@ -335,7 +335,3 @@ If you find this work helpful, please consider citing our paper:
 ## Acknowledgement
 
 We thank the authors of TravelUAV and AirVLN for releasing their codebases and providing useful engineering references for UAV navigation research.
-
-## Star History
-
-[![VoLN-UAV cumulative GitHub star growth](assets/readme/star_growth.png)](https://github.com/Admire-ljb/VoLN-UAV/stargazers)
