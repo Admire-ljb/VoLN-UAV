@@ -99,6 +99,28 @@ pip install -e .
 
 Install the CUDA-specific PyTorch build first if the default wheel does not match your system. The default package installation includes the training, AirSim, real-world, and plotting dependencies used by the released scripts.
 
+### Ubuntu quick start
+
+Ubuntu uses the `.sh` launchers corresponding to the Windows `.cmd` files:
+
+~~~bash
+chmod +x scripts/*.sh
+DEVICE=cuda ./scripts/train_planner.sh
+DEVICE=cuda ./scripts/eval_offline.sh
+~~~
+
+For online evaluation, start a Linux Unreal/AirSim build and run the same
+baseline wrapper:
+
+~~~bash
+./scripts/launch_simulator.sh --scene BrushifyUrban --executable /path/to/VolnEnv.sh
+BASELINE=reference TRIALS=10 EVAL_MODE=normal \
+  ./scripts/run_online_baseline.sh --work-dir runs/reference_test_10_normal
+~~~
+
+To use AirSim on another machine, additionally set `AIRSIM_IP` and
+`AIRSIM_PORT`.
+
 ## Dataset Release Plan
 
 - ✅ **Initial release:** 1,786 episodes across four environments: Brushify,
@@ -177,7 +199,8 @@ This mode uses `setVehiclePose` teleportation, pose-only reset, zero settling ti
 
 </details>
 
-Use <code>scripts\report_metrics.cmd</code> to summarize a run directory with the paper metrics.
+Use `scripts\report_metrics.cmd` on Windows or
+`./scripts/report_metrics.sh RUN_DIR` on Ubuntu to summarize a run directory.
 
 ## Training
 

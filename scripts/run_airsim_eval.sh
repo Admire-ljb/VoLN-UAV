@@ -6,16 +6,20 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON="${PYTHON:-python}"
-CONFIG="${CONFIG:-configs/train_planner_dataset_release.yaml}"
+CONFIG="${CONFIG:-configs/eval_airsim_dataset_release.yaml}"
 DEVICE="${DEVICE:-cuda}"
 export PYTHONPATH="${REPO_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
-if [[ $# -gt 0 && "$1" != -* ]]; then
-  CONFIG="$1"
-  shift
+connection_args=()
+if [[ -n "${AIRSIM_IP:-}" ]]; then
+  connection_args+=(--ip "${AIRSIM_IP}")
+fi
+if [[ -n "${AIRSIM_PORT:-}" ]]; then
+  connection_args+=(--port "${AIRSIM_PORT}")
 fi
 
-exec "${PYTHON}" -m voln_uav.cli.train_planner \
+exec "${PYTHON}" -m voln_uav.cli.eval_airsim \
   --config "${CONFIG}" \
   --device "${DEVICE}" \
+  "${connection_args[@]}" \
   "$@"

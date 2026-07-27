@@ -52,3 +52,28 @@ def test_build_launch_command_reports_missing_scene(tmp_path: Path) -> None:
 
     with pytest.raises(KeyError, match="Available scenes: BrushifyUrban"):
         build_launch_command(config, "UnknownScene", 41451, env_root)
+
+
+def test_build_launch_command_accepts_direct_linux_executable(tmp_path: Path) -> None:
+    executable = tmp_path / "VolnEnv.sh"
+    executable.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    config = {
+        "env": {
+            "executable_args": ["--port", "{port}", "--scene", "{scene}"],
+        }
+    }
+
+    command = build_launch_command(
+        config,
+        "BrushifyUrban",
+        41451,
+        executable=executable,
+    )
+
+    assert command == [
+        str(executable.resolve()),
+        "--port",
+        "41451",
+        "--scene",
+        "BrushifyUrban",
+    ]

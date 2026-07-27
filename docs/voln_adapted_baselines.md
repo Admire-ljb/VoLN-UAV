@@ -50,6 +50,16 @@ $env:CONFIG="configs\train_lag_dataset_release.yaml"
 .\scripts\run_train_planner.cmd
 ```
 
+Ubuntu:
+
+```bash
+cd VoLN-UAV
+
+CONFIG=configs/train_seq2seq_dataset_release.yaml ./scripts/train_planner.sh
+CONFIG=configs/train_cma_dataset_release.yaml ./scripts/train_planner.sh
+CONFIG=configs/train_lag_dataset_release.yaml ./scripts/train_planner.sh
+```
+
 Each method writes to a separate run directory:
 
 - `runs/planner_seq2seq_vg`
@@ -69,6 +79,14 @@ $env:CONFIG="configs\eval_offline_lag_dataset_release.yaml"
 .\scripts\run_eval_offline.cmd
 ```
 
+Ubuntu:
+
+```bash
+CONFIG=configs/eval_offline_seq2seq_dataset_release.yaml ./scripts/eval_offline.sh
+CONFIG=configs/eval_offline_cma_dataset_release.yaml ./scripts/eval_offline.sh
+CONFIG=configs/eval_offline_lag_dataset_release.yaml ./scripts/eval_offline.sh
+```
+
 ## AirSim evaluation
 
 ```powershell
@@ -81,6 +99,17 @@ $env:CONFIG="configs\eval_airsim_cma_dataset_release.yaml"
 $env:CONFIG="configs\eval_airsim_lag_dataset_release.yaml"
 .\scripts\run_airsim_eval.cmd
 ```
+
+Ubuntu:
+
+```bash
+CONFIG=configs/eval_airsim_seq2seq_dataset_release.yaml ./scripts/run_airsim_eval.sh
+CONFIG=configs/eval_airsim_cma_dataset_release.yaml ./scripts/run_airsim_eval.sh
+CONFIG=configs/eval_airsim_lag_dataset_release.yaml ./scripts/run_airsim_eval.sh
+```
+
+Set `AIRSIM_IP` and `AIRSIM_PORT` when the Ubuntu evaluation client connects
+to a simulator running on another machine.
 
 The release evaluation configs use the same paper protocol as VoLN-MLLM: at most 128 decisions, a 4 m three-dimensional goal region, and SR/SPL counted only when the policy explicitly stops inside the region. Each `planner_best.pt` stores the stop threshold calibrated on Validation-Seen.
 

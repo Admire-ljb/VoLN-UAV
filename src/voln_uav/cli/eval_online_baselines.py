@@ -296,6 +296,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run online AirSim reference/random baselines with physical or teleport control.")
     parser.add_argument("--config", default="configs/eval_airsim_dataset_release.yaml")
     parser.add_argument(
+        "--ip",
+        help="AirSim RPC host override, for example a Windows simulator host reached from Ubuntu.",
+    )
+    parser.add_argument("--port", type=int, help="AirSim RPC port override.")
+    parser.add_argument(
         "--episodes-file",
         help="Episode JSONL relative to benchmark-root; overrides episodes_file from the config.",
     )
@@ -338,6 +343,10 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if args.ip is not None:
+        cfg["ip"] = args.ip
+    if args.port is not None:
+        cfg["port"] = args.port
     episodes_file = str(args.episodes_file or cfg["episodes_file"])
     episodes = read_jsonl(Path(cfg["benchmark_root"]) / episodes_file)
     if args.scene:

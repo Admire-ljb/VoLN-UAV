@@ -27,6 +27,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run VoLN-UAV closed-loop evaluation in an AirSim environment.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--device", default=default_device())
+    parser.add_argument(
+        "--ip",
+        help="AirSim RPC host override, for example a Windows simulator host reached from Ubuntu.",
+    )
+    parser.add_argument("--port", type=int, help="AirSim RPC port override.")
     parser.add_argument("--controller", choices=["policy", "random", "reference"], help="Evaluation controller override.")
     split_group = parser.add_mutually_exclusive_group()
     split_group.add_argument(
@@ -72,6 +77,10 @@ def main() -> None:
     parser.add_argument("--work-dir", help="Directory for metrics, trajectories, and beacon placement logs.")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    if args.ip is not None:
+        cfg["ip"] = args.ip
+    if args.port is not None:
+        cfg["port"] = args.port
     if args.split is not None:
         cfg["episodes_file"] = PAPER_SPLITS[args.split]
     elif args.episodes_file is not None:

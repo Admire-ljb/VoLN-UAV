@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/.."
-export PYTHONPATH="${PYTHONPATH:-}:src"
-CONFIG=${1:-configs/eval_offline_dataset_release.yaml}
-python -m voln_uav.cli.eval_offline --config "$CONFIG"
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
+PYTHON="${PYTHON:-python}"
+CONFIG="${CONFIG:-configs/eval_offline_dataset_release.yaml}"
+DEVICE="${DEVICE:-cuda}"
+export PYTHONPATH="${REPO_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
+
+if [[ $# -gt 0 && "$1" != -* ]]; then
+  CONFIG="$1"
+  shift
+fi
+
+exec "${PYTHON}" -m voln_uav.cli.eval_offline \
+  --config "${CONFIG}" \
+  --device "${DEVICE}" \
+  "$@"

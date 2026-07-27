@@ -21,24 +21,29 @@ def build_launch_command(
     scene: str,
     port: int,
     env_root: str | Path | None = None,
+    executable: str | Path | None = None,
 ) -> list[str]:
     env_cfg = config.get("env", {})
-    root = Path(env_root).expanduser().resolve() if env_root else resolve_config_path(
-        env_cfg.get("root_path", "simulator_environments"),
-        config,
-    )
-    mapping = load_scene_mapping(env_cfg.get("scene_mapping"), config)
-    mapping.update(env_cfg.get("scene_mapping_inline", {}))
-    if scene not in mapping:
-        available = ", ".join(sorted(mapping)) or "(none)"
-        raise KeyError(f"Unknown scene {scene!r}. Available scenes: {available}")
-    executable = (root / mapping[scene]).resolve()
-    if not executable.is_file():
-        raise FileNotFoundError(
-            f"Simulator executable not found: {executable}\n"
-            "Download the simulator environments and pass --env-root or set env.root_path in the config."
+    if executable is not None:
+        executable_path = Path(executable).expanduser().resolve()
+    else:
+        root = Path(env_root).expanduser().resolve() if env_root else resolve_config_path(
+            env_cfg.get("root_path", "simulator_environments"),
+            config,
         )
-    command = [str(executable)]
+        mapping = load_scene_mapping(env_cfg.get("scene_mapping"), config)
+        mapping.update(env_cfg.get("scene_mapping_inline", {}))
+        if scene not in mapping:
+            available = ", ".join(sorted(mapping)) or "(none)"
+            raise KeyError(f"Unknown scene {scene!r}. Available scenes: {available}")
+        executable_path = (root / mapping[scene]).resolve()
+    if not executable_path.is_file():
+        raise FileNotFoundError(
+            f"Simulator executable not found: {executable_path}\n"
+            "Download a simulator build for the current operating system, then pass "
+            "--executable/--env-root or set env.root_path and env.scene_mapping in the config."
+        )
+    command = [str(executable_path)]
     command.extend(
         str(item).format(port=port, scene=scene)
         for item in env_cfg.get("executable_args", ["--port", "{port}"])
@@ -53,6 +58,13 @@ def main() -> None:
     parser.add_argument(
         "--env-root",
         help="Directory containing the downloaded simulator environments.",
+    )
+    parser.add_argument(
+        "--executable",
+        help=(
+            "Direct path to a scene executable. This bypasses the scene mapping and is "
+            "useful for Linux Unreal builds whose package layout differs from Windows."
+        ),
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int)
@@ -70,7 +82,13 @@ def main() -> None:
         print(f"AirSim is already available at {args.host}:{port}.")
         return
 
-    command = build_launch_command(config, args.scene, port, args.env_root)
+    command = build_launch_command(
+        config,
+        args.scene,
+        port,
+        args.env_root,
+        executable=args.executable,
+    )
     process = subprocess.Popen(command)
     print(f"Started {args.scene} (PID {process.pid}).")
     print(f"Executable: {command[0]}")

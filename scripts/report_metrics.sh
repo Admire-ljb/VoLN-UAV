@@ -6,16 +6,12 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON="${PYTHON:-python}"
-CONFIG="${CONFIG:-configs/train_planner_dataset_release.yaml}"
-DEVICE="${DEVICE:-cuda}"
+RUN_DIR="${RUN_DIR:-runs/eval_offline_dataset_release}"
 export PYTHONPATH="${REPO_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
 if [[ $# -gt 0 && "$1" != -* ]]; then
-  CONFIG="$1"
+  RUN_DIR="$1"
   shift
 fi
 
-exec "${PYTHON}" -m voln_uav.cli.train_planner \
-  --config "${CONFIG}" \
-  --device "${DEVICE}" \
-  "$@"
+exec "${PYTHON}" -m voln_uav.cli.report_metrics --run-dir "${RUN_DIR}" "$@"
