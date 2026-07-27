@@ -101,8 +101,6 @@ Install the CUDA-specific PyTorch build first if the default wheel does not matc
 
 ### Ubuntu quick start
 
-Ubuntu uses the `.sh` launchers corresponding to the Windows `.cmd` files:
-
 ~~~bash
 chmod +x scripts/*.sh
 DEVICE=cuda ./scripts/train_planner.sh
