@@ -233,7 +233,9 @@ python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.
 python -m voln_uav.cli.eval_airsim --config configs/eval_airsim_dataset_release.yaml --device cuda
 ~~~
 
-The default controller is `random`, which provides a checkpoint-free smoke test. To evaluate VoLN-MLLM, select the learned policy explicitly:
+For a one-episode AirSim health check, run `scripts/run_airsim_eval_smoke.cmd` on Windows or `bash scripts/run_airsim_eval_smoke.sh` on Ubuntu.
+
+The default evaluation controller is the checkpoint-free `random` baseline. To evaluate VoLN-MLLM, select the learned policy explicitly:
 
 ~~~bash
 python -m voln_uav.cli.eval_airsim \

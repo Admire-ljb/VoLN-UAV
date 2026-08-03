@@ -70,6 +70,14 @@ class BenchmarkBuilder:
         scene_map = {s["scene_id"]: s for s in scenes}
 
         routes = load_route_files(self.source_root, self.cfg["preset_routes_dir"], self.cfg["custom_routes_dir"])
+        # The release may retain duplicate source-route candidates for
+        # provenance. Deduplicate before generating episode assets so the
+        # benchmark contains only referenced beacon templates and records.
+        routes = deduplicate_episodes(
+            routes,
+            start_threshold=float(self.cfg["dedup"]["start_threshold"]),
+            goal_threshold=float(self.cfg["dedup"]["goal_threshold"]),
+        )
         routes_by_scene: dict[str, list[dict[str, Any]]] = {}
         for route in routes:
             routes_by_scene.setdefault(str(route["scene_id"]), []).append(route)
@@ -122,6 +130,7 @@ class BenchmarkBuilder:
             )
             task_beacons, background_beacons = generate_beacons(
                 scene_id=scene_id,
+                episode_id=str(route["trajectory_id"]),
                 scene_type=str(scene_meta.get("scene_type", "unknown")),
                 decision_points=decision_points,
                 route_length=len(route["states"]),
@@ -144,7 +153,7 @@ class BenchmarkBuilder:
                 num_beacons=int(self.cfg["goal_interface"]["num_beacons"]),
             )
             episode = {
-                "episode_id": f"{scene_id}_{route['trajectory_id']}",
+                "episode_id": str(route["trajectory_id"]),
                 "scene_id": scene_id,
                 "scene_type": scene_meta.get("scene_type", "unknown"),
                 "scene_source": scene_meta.get("scene_source"),
@@ -153,9 +162,9 @@ class BenchmarkBuilder:
                 "goal_category": route.get("goal_category", "goal"),
                 "path_length": route_len,
                 "start_to_goal_distance": compute_start_goal_distance(route),
-                "shortest_path_length": route.get("shortest_path_length"),
+                "shortest_path_length": route.get("shortest_path_length", route_len),
                 "shortest_path_provenance": route.get("shortest_path_provenance"),
-                "difficulty": self.difficulty_label(route_len),
+                "difficulty": str(route.get("difficulty") or self.difficulty_label(route_len)),
                 "visual_goal": visual_goal,
                 "task_beacons": task_beacons,
                 "background_beacons": background_beacons,
@@ -167,11 +176,6 @@ class BenchmarkBuilder:
             )
             episodes.append(episode)
 
-        episodes = deduplicate_episodes(
-            episodes,
-            start_threshold=float(self.cfg["dedup"]["start_threshold"]),
-            goal_threshold=float(self.cfg["dedup"]["goal_threshold"]),
-        )
         split_manifest = self.cfg.get("split_manifest")
         if split_manifest:
             manifest_path = Path(split_manifest)

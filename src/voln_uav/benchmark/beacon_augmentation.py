@@ -67,6 +67,7 @@ def generate_beacons(
     background_per_scene: int,
     semantic_bank: list[str],
     rng: random.Random,
+    episode_id: str | None = None,
     task_category_allowlist: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Return (task_beacons, background_beacons)."""
@@ -114,7 +115,8 @@ def generate_beacons(
 
     for j, idx in enumerate(selected_points):
         category = task_choices[j % len(task_choices)]
-        beacon_id = f"{scene_id}_task_{j:02d}"
+        owner_id = episode_id or scene_id
+        beacon_id = f"{owner_id}_task_{j:02d}"
         template_path = output_root / "templates" / "beacons" / f"{beacon_id}.png"
         write_beacon_template(template_path, category, category.replace("beacon-", "B-"))
         task_beacons.append(
@@ -126,7 +128,7 @@ def generate_beacons(
                 "relevance_rule": "episode_route",
                 "route_index": idx,
                 "visible_at": idx,
-                "template_image": str(template_path),
+                "template_image": template_path.relative_to(output_root.parent).as_posix(),
             }
         )
 
@@ -145,7 +147,7 @@ def generate_beacons(
                 "relevant": False,
                 "relevance_rule": "scene_passive",
                 "visible_at": int((j + 1) * max(route_length, 1) / (background_per_scene + 1)),
-                "template_image": str(template_path),
+                "template_image": template_path.relative_to(output_root.parent).as_posix(),
             }
         )
     return task_beacons, background_beacons
@@ -198,7 +200,7 @@ def generate_scene_background_beacons(
                 "relevance_rule": "scene_passive",
                 "position": placement,
                 "yaw_rad": yaw + math.pi,
-                "template_image": str(template_path),
+                "template_image": template_path.relative_to(output_root.parent).as_posix(),
             }
         )
     return backgrounds

@@ -115,11 +115,7 @@ def test_all_online_methods_share_episode_level_active_beacon_protocol():
         "eval_airsim_no_align_dataset_release.yaml",
         "eval_airsim_no_lora_dataset_release.yaml",
         "eval_airsim_clip_input_dataset_release.yaml",
-        "eval_airsim_smoke_local.yaml",
-        "eval_airsim_policy_smoke_local.yaml",
-        "eval_airsim_progress_check_local.yaml",
-        "eval_airsim_smoke_running_local.yaml",
-        "eval_airsim_smoke_takeoff_local.yaml",
+        "debug/eval_airsim_smoke.yaml",
     ]
     configs = {name: _load(name) for name in names}
     expected = configs[names[0]]["beacon_placement"]
@@ -136,3 +132,13 @@ def test_all_online_methods_share_episode_level_active_beacon_protocol():
     assert "route_beacons_per_episode" not in expected
     for name, config in configs.items():
         assert config["beacon_placement"] == expected, name
+
+
+def test_airsim_smoke_is_a_single_episode_reference_health_check():
+    release = _load("eval_airsim_dataset_release.yaml")
+    smoke = _load("debug/eval_airsim_smoke.yaml")
+
+    assert smoke["controller"] == "reference"
+    assert smoke["episode_limit"] == 1
+    assert smoke["strict_paper_protocol"] is False
+    assert smoke["success_radius"] == release["success_radius"] == 4.0

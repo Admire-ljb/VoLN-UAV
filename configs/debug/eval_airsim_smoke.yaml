@@ -1,0 +1,20 @@
+# One-episode AirSim health check using the reference trajectory.
+# Keep benchmark reporting on configs/eval_airsim_dataset_release.yaml.
+extends: ../eval_airsim_dataset_release.yaml
+
+strict_paper_protocol: false
+strict_scenes: false
+controller: reference
+work_dir: runs/eval_airsim_smoke
+
+connect_timeout_sec: 20.0
+max_steps: 16
+success_radius: 4.0
+
+episode_limit: 1
+scene_allowlist: [BrushifyForestPack]
+log_every: 1
+resume: false
+
+env:
+  auto_launch: false
