@@ -31,6 +31,7 @@ SIGN_ASSET_ALIASES = {
     "down": ("down",),
 }
 TARGET_TAG = "target_people"
+BEACON_RENDER_MODES = {"random", "direction", "text"}
 SEMANTIC_SIGN_TAG = {
     "turn-left": "left_turn",
     "left-turn": "left_turn",
@@ -53,6 +54,22 @@ YAW_MED = 35.0
 YAW_LARGE = 60.0
 SLOPE_UP = 1.0
 SLOPE_DOWN = -1.0
+
+
+def normalize_beacon_render_mode(value: Any = None) -> str:
+    """Normalize the active-beacon asset style selected for an evaluation run."""
+    raw = str(value or "direction").strip().lower()
+    aliases = {
+        "icon": "direction",
+        "icons": "direction",
+        "label": "text",
+        "labels": "text",
+    }
+    mode = aliases.get(raw, raw)
+    if mode not in BEACON_RENDER_MODES:
+        choices = ", ".join(sorted(BEACON_RENDER_MODES))
+        raise ValueError(f"Unsupported beacon render mode {value!r}; use one of: {choices}")
+    return mode
 
 
 def stable_episode_seed(base_seed: int, episode_id: str) -> int:

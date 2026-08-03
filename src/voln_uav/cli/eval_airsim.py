@@ -33,6 +33,13 @@ def main() -> None:
     )
     parser.add_argument("--port", type=int, help="AirSim RPC port override.")
     parser.add_argument("--controller", choices=["policy", "random", "reference"], help="Evaluation controller override.")
+    parser.add_argument(
+        "--beacon-mode",
+        "--beacon-type",
+        dest="beacon_mode",
+        choices=["random", "direction", "text"],
+        help="Active beacon asset style. If omitted, the shared config defaults to direction icons.",
+    )
     split_group = parser.add_mutually_exclusive_group()
     split_group.add_argument(
         "--split",
@@ -93,6 +100,8 @@ def main() -> None:
         cfg["strict_paper_protocol"] = False
     if args.controller is not None:
         cfg["controller"] = args.controller
+    if args.beacon_mode is not None:
+        cfg.setdefault("beacon_placement", {})["render_mode"] = args.beacon_mode
     if args.trials is not None:
         cfg["trials"] = args.trials
     if args.episode_index is not None:

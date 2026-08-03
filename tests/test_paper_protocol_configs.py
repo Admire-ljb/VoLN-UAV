@@ -121,6 +121,7 @@ def test_all_online_methods_share_episode_level_active_beacon_protocol():
     expected = configs[names[0]]["beacon_placement"]
 
     assert expected["source"] == "episode_task_beacons"
+    assert expected["render_mode"] == "direction"
     assert expected["count_by_path_length"] == {
         "easy_lt_m": 300.0,
         "normal_lt_m": 450.0,

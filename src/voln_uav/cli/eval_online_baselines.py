@@ -340,6 +340,13 @@ def main() -> None:
     parser.add_argument("--stationary-radius-m", type=float, help="Radius used to decide whether the vehicle is stationary.")
     parser.add_argument("--work-dir")
     parser.add_argument("--no-beacons", action="store_true")
+    parser.add_argument(
+        "--beacon-mode",
+        "--beacon-type",
+        dest="beacon_mode",
+        choices=["random", "direction", "text"],
+        help="Active beacon asset style. If omitted, the shared config defaults to direction icons.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -396,6 +403,8 @@ def main() -> None:
             beacon_cfg = dict(cfg.get("beacon_placement", {}) or {})
             if args.no_beacons:
                 beacon_cfg["enabled"] = False
+            if args.beacon_mode is not None:
+                beacon_cfg["render_mode"] = args.beacon_mode
             placements = env.place_beacons_for_episode(episode, beacon_cfg, seed=int(cfg.get("seed", 0)))
             max_teleport_step_m = float(args.max_teleport_step_m if args.max_teleport_step_m is not None else cfg.get("max_teleport_step_m", env.max_teleport_step_m))
             max_teleport_vertical_step_m = float(args.max_teleport_vertical_step_m if args.max_teleport_vertical_step_m is not None else cfg.get("max_teleport_vertical_step_m", env.max_teleport_vertical_step_m))

@@ -15,6 +15,7 @@ from voln_uav.simulators.beacon_placement import (
     SIGN_ASSET_ALIASES,
     SIGN_ASSET_BASE,
     TARGET_TAG,
+    normalize_beacon_render_mode,
     plan_route_beacons,
     stable_episode_seed,
 )
@@ -326,8 +327,27 @@ class AirSimRouteEnv:
             ]
         return list(self._text_beacon_object_cache)
 
-    def _pick_beacon_object(self, tag: str, used: set[str], rng: random.Random) -> str | None:
-        names = [name for name in self._scene_beacon_objects() if name not in used]
+    def _pick_beacon_object(
+        self,
+        tag: str,
+        used: set[str],
+        rng: random.Random,
+        render_mode: str = "direction",
+    ) -> str | None:
+        mode = normalize_beacon_render_mode(render_mode)
+        if tag == TARGET_TAG:
+            mode = "direction"
+        if mode == "random":
+            raise ValueError("Resolve random beacon mode before selecting a scene object")
+        names = [
+            name
+            for name in (
+                self._scene_text_beacon_objects()
+                if mode == "text"
+                else self._scene_beacon_objects()
+            )
+            if name not in used
+        ]
         if tag == TARGET_TAG:
             candidates = [
                 name
@@ -345,6 +365,33 @@ class AirSimRouteEnv:
             ]
         rng.shuffle(candidates)
         return candidates[0] if candidates else None
+
+    def _pick_active_beacon_object(
+        self,
+        tag: str,
+        used: set[str],
+        rng: random.Random,
+        requested_mode: str,
+    ) -> tuple[str | None, str]:
+        """Select an active route cue while keeping random choices reproducible."""
+        mode = normalize_beacon_render_mode(requested_mode)
+        if tag == TARGET_TAG:
+            return self._pick_beacon_object(tag, used, rng, "direction"), "target"
+
+        modes = [mode]
+        if mode == "random":
+            modes = ["direction", "text"]
+            rng.shuffle(modes)
+        for candidate_mode in modes:
+            name = self._pick_beacon_object(
+                tag,
+                used,
+                rng,
+                render_mode=candidate_mode,
+            )
+            if name is not None:
+                return name, candidate_mode
+        return None, modes[0]
 
     def current_position(self) -> list[float]:
         state = self.client.getMultirotorState()
@@ -391,6 +438,7 @@ class AirSimRouteEnv:
         episode_id = str(episode.get("episode_id", "episode"))
         rng_seed = stable_episode_seed(int(cfg.get("random_seed", seed)), episode_id)
         rng = random.Random(rng_seed)
+        requested_render_mode = normalize_beacon_render_mode(cfg.get("render_mode"))
         hidden_z = float(cfg.get("hidden_z", -500.0))
         scene_id = str(episode.get("scene_id", "scene"))
         if self._passive_scene_id != scene_id:
@@ -422,11 +470,30 @@ class AirSimRouteEnv:
             self._passive_scene_id = scene_id
         for planned in plan_route_beacons(episode, cfg, base_seed=seed):
             item = dict(planned)
-            obj_name = self._pick_beacon_object(str(item["tag"]), used, rng)
+            asset_identity = str(
+                item.get(
+                    "task_beacon_id",
+                    f"{item.get('kind', 'beacon')}:{item.get('order', 0)}",
+                )
+            )
+            asset_rng = random.Random(
+                stable_episode_seed(rng_seed, f"{episode_id}:{asset_identity}")
+            )
+            obj_name, resolved_render_mode = self._pick_active_beacon_object(
+                str(item["tag"]),
+                used,
+                asset_rng,
+                requested_render_mode,
+            )
             item["object_name"] = obj_name
+            item["render_mode_requested"] = requested_render_mode
+            item["render_mode"] = resolved_render_mode
             item["placed"] = False
             if obj_name is None:
-                item["error"] = "no matching AirSim scene object"
+                item["error"] = (
+                    "no matching AirSim scene object for "
+                    f"beacon render mode {requested_render_mode!r}"
+                )
                 materialized.append(item)
                 continue
             try:

@@ -1,6 +1,8 @@
 beacon_placement:
   enabled: true
   source: episode_task_beacons
+  # direction: icon assets; text: label_* assets; random: stable per-beacon choice.
+  render_mode: direction
   count_by_path_length:
     easy_lt_m: 300.0
     normal_lt_m: 450.0
