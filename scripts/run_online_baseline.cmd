@@ -13,7 +13,7 @@ set "EVAL_MODE_ARGS=--control-mode move_to_position"
 set "REFERENCE_BOOTSTRAP_ARGS="
 if /I "%BASELINE%"=="reference" set "REFERENCE_BOOTSTRAP_ARGS=--reference-bootstrap-steps 2"
 if /I "%EVAL_MODE%"=="normal" (
-  if /I "%BASELINE%"=="reference" set "EVAL_MODE_ARGS=--control-mode move_on_path"
+  if /I "%BASELINE%"=="reference" set "EVAL_MODE_ARGS=--control-mode setpose_replay --fast-reset --reference-bootstrap-steps 0"
   goto run
 )
 if /I "%EVAL_MODE%"=="fast" (

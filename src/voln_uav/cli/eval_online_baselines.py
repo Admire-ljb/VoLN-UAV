@@ -48,16 +48,81 @@ def _online_shortest_path_length(episode: dict[str, Any], ref_path: list[list[fl
         return path_length(ref_path)
 
 
-def _reference_targets(episode: dict[str, Any], stride: int, start_index: int = 0) -> list[list[float]]:
+def _reference_states(episode: dict[str, Any], stride: int, start_index: int = 0) -> list[dict[str, Any]]:
     states = list(episode["states"])
     step = max(int(stride), 1)
     start = min(max(int(start_index), 0), max(len(states) - 1, 0))
-    targets = [[float(v) for v in state["position"][:3]] for state in states[start::step]]
-    final = [float(v) for v in states[-1]["position"][:3]]
-    if not targets or targets[-1] != final:
-        targets.append(final)
-    return targets
+    selected = states[start::step]
+    if states and (not selected or selected[-1] is not states[-1]):
+        selected.append(states[-1])
+    return selected
 
+
+def _reference_targets(episode: dict[str, Any], stride: int, start_index: int = 0) -> list[list[float]]:
+    return [
+        [float(value) for value in state["position"][:3]]
+        for state in _reference_states(episode, stride=stride, start_index=start_index)
+    ]
+
+
+def _normalized_quaternion(value: Any) -> list[float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) < 4:
+        return None
+    quaternion = [float(component) for component in value[:4]]
+    norm = math.sqrt(sum(component * component for component in quaternion))
+    if not all(math.isfinite(component) for component in quaternion) or norm <= 1e-9:
+        return None
+    return [component / norm for component in quaternion]
+
+
+def _slerp_quaternion(start: list[float], end: list[float], fraction: float) -> list[float]:
+    fraction = min(max(float(fraction), 0.0), 1.0)
+    dot = sum(a * b for a, b in zip(start, end))
+    if dot < 0.0:
+        end = [-component for component in end]
+        dot = -dot
+    dot = min(max(dot, -1.0), 1.0)
+    if dot > 0.9995:
+        blended = [a + fraction * (b - a) for a, b in zip(start, end)]
+        norm = math.sqrt(sum(component * component for component in blended))
+        return [component / max(norm, 1e-9) for component in blended]
+    theta = math.acos(dot)
+    sin_theta = math.sin(theta)
+    start_weight = math.sin((1.0 - fraction) * theta) / sin_theta
+    end_weight = math.sin(fraction * theta) / sin_theta
+    return [start_weight * a + end_weight * b for a, b in zip(start, end)]
+
+
+def _interpolate_reference_state(
+    start_state: dict[str, Any],
+    end_state: dict[str, Any],
+    fraction: float,
+) -> dict[str, Any]:
+    """Interpolate a recorded pose without changing the route endpoints."""
+    fraction = min(max(float(fraction), 0.0), 1.0)
+    if fraction <= 0.0:
+        return dict(start_state)
+    if fraction >= 1.0:
+        return dict(end_state)
+    state = dict(end_state)
+    start_position = [float(value) for value in start_state["position"][:3]]
+    end_position = [float(value) for value in end_state["position"][:3]]
+    state["position"] = [
+        start_position[axis] + fraction * (end_position[axis] - start_position[axis])
+        for axis in range(3)
+    ]
+
+    start_quaternion = _normalized_quaternion(start_state.get("orientation"))
+    end_quaternion = _normalized_quaternion(end_state.get("orientation"))
+    if start_quaternion is not None and end_quaternion is not None:
+        state["orientation"] = _slerp_quaternion(start_quaternion, end_quaternion, fraction)
+    else:
+        state.pop("orientation", None)
+        start_yaw = float(start_state.get("yaw", end_state.get("yaw", 0.0)))
+        end_yaw = float(end_state.get("yaw", start_yaw))
+        yaw_delta = (end_yaw - start_yaw + math.pi) % (2.0 * math.pi) - math.pi
+        state["yaw"] = start_yaw + fraction * yaw_delta
+    return state
 
 def _resample_path(path: list[list[float]], count: int) -> list[list[float]]:
     if not path or count <= 0:
@@ -137,6 +202,10 @@ def _run_targets(
     max_decisions: int | None = None,
     initial_executed_path: list[list[float]] | None = None,
     initial_path_length_m: float = 0.0,
+    target_states: list[dict[str, Any]] | None = None,
+    reference_pose_interval_sec: float = 0.1,
+    reference_pose_rate_hz: float = 60.0,
+    endpoint_hover_sec: float = 0.0,
 ) -> tuple[list[list[float]], list[float], int, float, str, float, float, bool]:
     executed = list(initial_executed_path) if initial_executed_path else [_position(env)]
     cycle_times: list[float] = []
@@ -150,6 +219,11 @@ def _run_targets(
     decision_limit = len(targets) if max_decisions is None else max(int(max_decisions), 0)
     scheduled_targets = targets[:decision_limit]
     truncated_by_step_limit = len(scheduled_targets) < len(targets)
+    scheduled_states = list(target_states or [])[:decision_limit]
+    if control_mode == "setpose_replay" and len(scheduled_states) != len(scheduled_targets):
+        raise ValueError(
+            "setpose_replay requires one recorded state for every reference target"
+        )
     if control_mode == "move_on_path":
         start_position = _position(env)
         start = time.perf_counter()
@@ -178,6 +252,8 @@ def _run_targets(
             termination_reason = "completed_targets"
         if termination_reason == "completed_targets":
             env.hover(scheduled_targets[-1] if scheduled_targets else None)
+            if endpoint_hover_sec > 0.0:
+                time.sleep(float(endpoint_hover_sec))
         else:
             env.hover()
         episode_elapsed_sec = time.perf_counter() - started_at
@@ -194,7 +270,7 @@ def _run_targets(
             0.0,
             stopped,
         )
-    for target in scheduled_targets:
+    for target_index, target in enumerate(scheduled_targets):
         if rng is not None and rng.random() < max(min(float(random_stop_probability), 1.0), 0.0):
             termination_reason = "policy_stop"
             stopped = True
@@ -214,14 +290,37 @@ def _run_targets(
             break
 
         start = time.perf_counter()
-        env.move_to_waypoint(
-            current,
-            target,
-            control_mode=control_mode,
-            max_teleport_step_m=max_teleport_step_m,
-            max_teleport_vertical_step_m=max_teleport_vertical_step_m,
-            teleport_keep_initial_height=teleport_keep_initial_height,
-        )
+        if control_mode == "setpose_replay":
+            pose_interval = max(float(reference_pose_interval_sec), 0.0)
+            pose_rate = max(float(reference_pose_rate_hz), 0.0)
+            interpolation_steps = (
+                max(int(math.ceil(pose_interval * pose_rate)), 1)
+                if pose_interval > 0.0 and pose_rate > 0.0
+                else 1
+            )
+            start_state = (
+                scheduled_states[target_index - 1]
+                if target_index > 0
+                else scheduled_states[target_index]
+            )
+            end_state = scheduled_states[target_index]
+            for interpolation_index in range(1, interpolation_steps + 1):
+                fraction = interpolation_index / interpolation_steps
+                pose_state = _interpolate_reference_state(start_state, end_state, fraction)
+                env.set_reference_pose(pose_state, zero_velocity=True)
+                deadline = start + pose_interval * fraction
+                remaining = deadline - time.perf_counter()
+                if remaining > 0.0:
+                    time.sleep(remaining)
+        else:
+            env.move_to_waypoint(
+                current,
+                target,
+                control_mode=control_mode,
+                max_teleport_step_m=max_teleport_step_m,
+                max_teleport_vertical_step_m=max_teleport_vertical_step_m,
+                teleport_keep_initial_height=teleport_keep_initial_height,
+            )
         cycle_times.append(time.perf_counter() - start)
         pos = _position(env)
         executed_path_length_m += l2(current, pos)
@@ -244,6 +343,8 @@ def _run_targets(
         termination_reason = "max_steps"
     elif termination_reason == "completed_targets":
         env.hover(scheduled_targets[-1] if scheduled_targets else None)
+        if endpoint_hover_sec > 0.0:
+            time.sleep(float(endpoint_hover_sec))
     episode_elapsed_sec = time.perf_counter() - started_at
     if stop_at_end and termination_reason == "completed_targets":
         stopped = True
@@ -323,7 +424,7 @@ def main() -> None:
     parser.add_argument(
         "--control-mode",
         default="move_to_position",
-        choices=["move_to_position", "move_on_path", "teleport"],
+        choices=["move_to_position", "move_on_path", "teleport", "setpose_replay"],
     )
     parser.add_argument("--fast-reset", action="store_true", help="Reset each episode with simSetVehiclePose only, skipping takeoff/moveToPositionAsync.")
     parser.add_argument("--settle-sec", type=float, help="Override simulator settle time after each pose/action update.")
@@ -334,6 +435,9 @@ def main() -> None:
     parser.add_argument("--disable-teleport-hover-after-setpose", action="store_true", help="Do not call hoverAsync after teleport setVehiclePose.")
     parser.add_argument("--disable-teleport-pause-after-setpose", action="store_true", help="Compatibility flag; teleport no longer pauses physics after setVehiclePose.")
     parser.add_argument("--disable-teleport-zero-velocity", action="store_true", help="Do not zero kinematics after teleport setVehiclePose.")
+    parser.add_argument("--reference-pose-interval-sec", type=float, help="Wall-clock interval between exact recorded poses in setpose_replay mode.")
+    parser.add_argument("--reference-pose-rate-hz", type=float, help="Interpolated setVehiclePose update rate in setpose_replay mode.")
+    parser.add_argument("--endpoint-hover-sec", type=float, help="Seconds to hold position after a completed reference route.")
     parser.add_argument("--episode-timeout-factor", type=float, help="End an episode after this multiple of reference travel time.")
     parser.add_argument("--episode-path-length-factor", type=float, help="End an episode after this multiple of reference path length.")
     parser.add_argument("--stationary-timeout-sec", type=float, help="End an episode after the vehicle stays within stationary radius for this many seconds; <=0 disables it.")
@@ -398,7 +502,7 @@ def main() -> None:
     try:
         for trial, episode in enumerate(selected):
             episode_id = str(episode["episode_id"])
-            fast_reset = bool(args.fast_reset or cfg.get("fast_reset", False) or str(args.control_mode) == "teleport")
+            fast_reset = bool(args.fast_reset or cfg.get("fast_reset", False) or str(args.control_mode) in {"teleport", "setpose_replay"})
             reset_stabilization = env.reset_to_episode_start(episode, ensure_flying=not fast_reset)
             beacon_cfg = dict(cfg.get("beacon_placement", {}) or {})
             if args.no_beacons:
@@ -448,8 +552,14 @@ def main() -> None:
             stationary_timeout_sec = float(args.stationary_timeout_sec if args.stationary_timeout_sec is not None else cfg.get("stationary_timeout_sec", 10.0))
             stationary_radius_m = float(args.stationary_radius_m if args.stationary_radius_m is not None else cfg.get("stationary_radius_m", 0.5))
             paper_protocol = str(cfg.get("termination_mode", "paper")).lower() == "paper"
+            reference_states: list[dict[str, Any]] | None = None
             if args.baseline == "reference":
-                targets = _reference_targets(episode, stride=int(args.reference_stride), start_index=bootstrap_reference_offset + 1)
+                reference_states = _reference_states(
+                    episode,
+                    stride=int(args.reference_stride),
+                    start_index=bootstrap_reference_offset + 1,
+                )
+                targets = [[float(value) for value in state["position"][:3]] for state in reference_states]
                 random_rng = None
             else:
                 random_rng = random.Random(int(args.seed) + trial * 1009)
@@ -482,12 +592,34 @@ def main() -> None:
                 max_decisions=int(cfg.get("max_steps", 128)) if paper_protocol else None,
                 initial_executed_path=bootstrap_positions,
                 initial_path_length_m=bootstrap_path_length_m,
+                target_states=reference_states,
+                reference_pose_interval_sec=float(
+                    args.reference_pose_interval_sec
+                    if args.reference_pose_interval_sec is not None
+                    else cfg.get("reference_pose_interval_sec", 0.1)
+                ),
+                reference_pose_rate_hz=float(
+                    args.reference_pose_rate_hz
+                    if args.reference_pose_rate_hz is not None
+                    else cfg.get("reference_pose_rate_hz", 60.0)
+                ),
+                endpoint_hover_sec=float(
+                    args.endpoint_hover_sec
+                    if args.endpoint_hover_sec is not None
+                    else cfg.get("endpoint_hover_sec", 1.0)
+                ),
             )
-            metric_path = (
-                _resample_path(executed, len(ref_path))
-                if str(args.control_mode) == "move_on_path"
-                else executed
-            )
+            if str(args.control_mode) == "setpose_replay":
+                pose_path = (
+                    executed[1:]
+                    if not bootstrap_positions and len(executed) == len(targets) + 1
+                    else executed
+                )
+                metric_path = _resample_path(pose_path, len(ref_path))
+            elif str(args.control_mode) == "move_on_path":
+                metric_path = _resample_path(executed, len(ref_path))
+            else:
+                metric_path = executed
             metrics = summarize_episode(
                 pred_path=metric_path,
                 ref_path=ref_path,
@@ -503,6 +635,7 @@ def main() -> None:
                 {
                     "episode_id": episode_id,
                     "baseline": args.baseline,
+                    "control_mode": str(args.control_mode),
                     "targets": targets,
                     "executed_path": executed,
                     "metric_path": metric_path,
@@ -520,6 +653,21 @@ def main() -> None:
                     "teleport_hover_after_setpose": teleport_hover_after_setpose,
                     "teleport_pause_after_setpose": teleport_pause_after_setpose,
                     "teleport_zero_velocity": teleport_zero_velocity,
+                    "reference_pose_interval_sec": float(
+                        args.reference_pose_interval_sec
+                        if args.reference_pose_interval_sec is not None
+                        else cfg.get("reference_pose_interval_sec", 0.1)
+                    ),
+                    "reference_pose_rate_hz": float(
+                        args.reference_pose_rate_hz
+                        if args.reference_pose_rate_hz is not None
+                        else cfg.get("reference_pose_rate_hz", 60.0)
+                    ),
+                    "endpoint_hover_sec": float(
+                        args.endpoint_hover_sec
+                        if args.endpoint_hover_sec is not None
+                        else cfg.get("endpoint_hover_sec", 1.0)
+                    ),
                     "reference_bootstrap_steps": reference_bootstrap_steps,
                     "reference_bootstrap_count": len(reference_bootstrap),
                     "path_length_limit_m": path_length_limit_m,
@@ -539,6 +687,7 @@ def main() -> None:
                 "scene_id": episode["scene_id"],
                 "difficulty": episode.get("difficulty"),
                 "baseline": args.baseline,
+                "control_mode": str(args.control_mode),
                 **metrics,
                 "cycle_times": cycle_times,
                 "collisions": collisions,
@@ -553,6 +702,21 @@ def main() -> None:
                 "teleport_hover_after_setpose": teleport_hover_after_setpose,
                 "teleport_pause_after_setpose": teleport_pause_after_setpose,
                 "teleport_zero_velocity": teleport_zero_velocity,
+                "reference_pose_interval_sec": float(
+                    args.reference_pose_interval_sec
+                    if args.reference_pose_interval_sec is not None
+                    else cfg.get("reference_pose_interval_sec", 0.1)
+                ),
+                "reference_pose_rate_hz": float(
+                    args.reference_pose_rate_hz
+                    if args.reference_pose_rate_hz is not None
+                    else cfg.get("reference_pose_rate_hz", 60.0)
+                ),
+                "endpoint_hover_sec": float(
+                    args.endpoint_hover_sec
+                    if args.endpoint_hover_sec is not None
+                    else cfg.get("endpoint_hover_sec", 1.0)
+                ),
                 "reference_bootstrap_steps": reference_bootstrap_steps,
                 "reference_bootstrap_count": len(reference_bootstrap),
                 "path_length_limit_m": path_length_limit_m,

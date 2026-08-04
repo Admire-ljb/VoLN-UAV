@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -15,12 +16,80 @@ from voln_uav.simulators.beacon_placement import (
     SIGN_ASSET_ALIASES,
     SIGN_ASSET_BASE,
     TARGET_TAG,
+
     normalize_beacon_render_mode,
     plan_route_beacons,
     stable_episode_seed,
 )
 
 TARGET_ASSET_ALIASES = (TARGET_TAG, "target", "people", "person")
+
+
+def _asset_name_matches_alias(name: str, alias: str) -> bool:
+    """Match an Unreal asset token without matching inside unrelated words."""
+    pattern = rf"(?<![a-z0-9]){re.escape(alias.casefold())}(?=$|[_-]|\d)"
+    return re.search(pattern, name.casefold()) is not None
+
+
+def _text_asset_matches_tag(name: str, tag: str) -> bool:
+    """Match one exact text-sign family, including its optional white suffix."""
+    pattern = rf"^label_{re.escape(str(tag).casefold())}(?:w)?(?=$|[_-]|\d)"
+    return re.search(pattern, name.casefold()) is not None
+
+
+def _target_asset_kind(name: str) -> str:
+    """Classify a selected target scene object as a person or a sign."""
+    people_aliases = ("target_people", "people", "person")
+    if any(_asset_name_matches_alias(name, alias) for alias in people_aliases):
+        return "people"
+    return "sign"
+
+
+def _adjust_target_pose_for_asset(
+    placement: dict[str, Any],
+    object_name: str,
+    config: dict[str, Any],
+) -> None:
+    """Apply asset-specific target height and front-face orientation."""
+    kind = _target_asset_kind(object_name)
+    placement["target_asset_kind"] = kind
+    if kind == "people":
+        # People assets use physics and may settle downward. Spawn them above
+        # the planned point so their collision capsule cannot begin underground.
+        vertical_offset = float(config.get("target_people_vertical_ned_m", -100.0))
+        position = [float(value) for value in placement["position"][:3]]
+        position[2] += vertical_offset
+        placement["position"] = position
+        placement["target_asset_vertical_ned_offset_m"] = vertical_offset
+        return
+
+    # NED +Z points down, so a positive offset inserts a tall sign lower while
+    # people remain at the planned target position.
+    vertical_offset = float(config.get("target_sign_vertical_ned_m", 10.0))
+    position = [float(value) for value in placement["position"][:3]]
+    position[2] += vertical_offset
+    placement["position"] = position
+    placement["target_asset_vertical_ned_offset_m"] = vertical_offset
+
+    # Sign meshes face along a lateral local axis rather than the people
+    # asset's forward axis. Rebuild yaw from the recorded final-view heading.
+    yaw_add_deg = float(config.get("target_sign_yaw_add_deg", 90.0))
+    view_yaw_deg = float(placement.get("target_direction_yaw_deg", 0.0))
+    yaw_rad = math.radians(view_yaw_deg + yaw_add_deg)
+    placement["yaw_rad"] = (yaw_rad + math.pi) % (2.0 * math.pi) - math.pi
+    placement["target_asset_yaw_add_deg"] = yaw_add_deg
+
+
+def _text_asset_yaw_correction_deg(
+    tag: str,
+    config: dict[str, Any],
+) -> float:
+    """Return the mesh-front correction for NED positive-yaw text signs."""
+    should_flip = (
+        bool(config.get("text_yaw_flip_right_turn_signs", False))
+        and str(tag).startswith("right")
+    )
+    return float(config.get("text_yaw_flip_deg", 180.0)) if should_flip else 0.0
 
 
 @dataclass
@@ -314,7 +383,7 @@ class AirSimRouteEnv:
                 name
                 for name in objects
                 if "label" not in name.casefold()
-                and any(base.casefold() in name.casefold() for base in bases)
+                and any(_asset_name_matches_alias(name, base) for base in bases)
             ]
         return list(self._beacon_object_cache)
 
@@ -350,19 +419,25 @@ class AirSimRouteEnv:
         ]
         if tag == TARGET_TAG:
             candidates = [
-                name
-                for name in names
-                if any(base in name.casefold() for base in ("target_people", "people", "person"))
+                name for name in names if _target_asset_kind(name) == "people"
             ]
             if not candidates:
-                candidates = [name for name in names if "target" in name.casefold()]
+                candidates = [
+                    name for name in names
+                    if _asset_name_matches_alias(name, "target")
+                ]
         else:
-            bases = list(SIGN_ASSET_ALIASES.get(tag, (SIGN_ASSET_BASE.get(tag, tag),)))
-            candidates = [
-                name
-                for name in names
-                if any(base.casefold() in name.casefold() for base in bases)
-            ]
+            if mode == "text":
+                # The route planner already classifies cumulative turn angle;
+                # preserve that exact class in the rendered text asset.
+                candidates = [name for name in names if _text_asset_matches_tag(name, tag)]
+            else:
+                bases = list(SIGN_ASSET_ALIASES.get(tag, (SIGN_ASSET_BASE.get(tag, tag),)))
+                candidates = [
+                    name
+                    for name in names
+                    if any(_asset_name_matches_alias(name, base) for base in bases)
+                ]
         rng.shuffle(candidates)
         return candidates[0] if candidates else None
 
@@ -488,6 +563,20 @@ class AirSimRouteEnv:
             item["object_name"] = obj_name
             item["render_mode_requested"] = requested_render_mode
             item["render_mode"] = resolved_render_mode
+            if item.get("kind") == "target" and obj_name is not None:
+                _adjust_target_pose_for_asset(item, obj_name, cfg)
+            if resolved_render_mode == "text":
+                correction_deg = _text_asset_yaw_correction_deg(
+                    str(item.get("tag", "")),
+                    cfg,
+                )
+                item["asset_yaw_correction_deg"] = correction_deg
+                if correction_deg:
+                    item["yaw_rad"] = (
+                        float(item.get("yaw_rad", 0.0))
+                        + math.radians(correction_deg)
+                        + math.pi
+                    ) % (2.0 * math.pi) - math.pi
             item["placed"] = False
             if obj_name is None:
                 item["error"] = (
@@ -711,6 +800,60 @@ class AirSimRouteEnv:
             "control_mode": control_mode,
         }
 
+    def set_reference_pose(
+        self,
+        state: dict[str, Any],
+        zero_velocity: bool = True,
+    ) -> dict[str, Any]:
+        """Replay one recorded reference state as an exact AirSim vehicle pose."""
+        position = [float(value) for value in state["position"][:3]]
+        raw_orientation = state.get("orientation")
+        orientation_source = "yaw"
+        if isinstance(raw_orientation, (list, tuple)) and len(raw_orientation) >= 4:
+            quaternion = [float(value) for value in raw_orientation[:4]]
+            norm = math.sqrt(sum(value * value for value in quaternion))
+            if all(math.isfinite(value) for value in quaternion) and norm > 1e-9:
+                qx, qy, qz, qw = [value / norm for value in quaternion]
+                orientation_source = "recorded_quaternion"
+            else:
+                yaw = float(state.get("yaw", 0.0))
+                qx, qy, qz, qw = yaw_to_quaternion(yaw)
+        else:
+            yaw = float(state.get("yaw", 0.0))
+            qx, qy, qz, qw = yaw_to_quaternion(yaw)
+
+        pose = self.airsim.Pose(
+            self.airsim.Vector3r(*position),
+            self.airsim.Quaternionr(qx, qy, qz, qw),
+        )
+        self._set_sim_pause(False)
+        self.client.simSetVehiclePose(pose, True)
+        zeroed = self._zero_vehicle_motion(pose) if zero_velocity else False
+        return {
+            "requested_waypoint": position,
+            "height_limited_waypoint": position,
+            "executed_waypoint": position,
+            "raw_requested_distance_m": 0.0,
+            "requested_distance_m": 0.0,
+            "executed_distance_m": 0.0,
+            "requested_vertical_delta_m": 0.0,
+            "executed_vertical_delta_m": 0.0,
+            "max_teleport_step_m": None,
+            "max_teleport_vertical_step_m": None,
+            "teleport_keep_initial_height": False,
+            "teleport_height_locked": False,
+            "teleport_vertical_clipped": False,
+            "teleport_clipped": False,
+            "invalid_waypoint": False,
+            "teleport_stabilization": {
+                "zero_velocity": zeroed,
+                "hovered": False,
+                "paused": False,
+            },
+            "orientation_source": orientation_source,
+            "control_mode": "setpose_replay",
+        }
+
     def move_on_path(self, waypoints: list[list[float]], timeout_sec: float) -> dict[str, Any]:
         if not waypoints:
             return {"waypoint_count": 0, "control_mode": "move_on_path"}
@@ -727,76 +870,61 @@ class AirSimRouteEnv:
             ]
 
         initial_position = telemetry_position()
-        chunks = split_waypoints_by_heading([initial_position, *waypoints])
         telemetry_path = [initial_position]
         collision_samples = 0
-        segment_yaws: list[float] = []
-        failed_segment: int | None = None
-        deadline = time.perf_counter() + max(float(timeout_sec), self.move_timeout_sec)
+        path = [
+            self.airsim.Vector3r(float(point[0]), float(point[1]), float(point[2]))
+            for point in waypoints
+        ]
+        future = self.client.moveOnPathAsync(
+            path=path,
+            velocity=self.speed,
+            timeout_sec=max(float(timeout_sec), self.move_timeout_sec),
+            drivetrain=self.airsim.DrivetrainType.ForwardOnly,
+            yaw_mode=self.airsim.YawMode(is_rate=False),
+            lookahead=3.0,
+            adaptive_lookahead=1.0,
+        )
+        completed = threading.Event()
+        motion_error: list[BaseException] = []
 
-        for segment_index, chunk in enumerate(chunks):
-            segment_targets = chunk[1:]
-            if not segment_targets:
-                continue
-            segment_yaw_deg = yaw_to_target(chunk[0], chunk[-1])
-            segment_yaws.append(segment_yaw_deg)
-            getattr(self.client, "rotateTo" "YawAsync")(
-                segment_yaw_deg,
-                timeout_sec=min(max(self.move_timeout_sec, 1.0), 5.0),
-                margin=3.0,
-            ).join()
-            path = [
-                self.airsim.Vector3r(float(point[0]), float(point[1]), float(point[2]))
-                for point in segment_targets
-            ]
-            remaining_timeout = max(deadline - time.perf_counter(), 1.0)
-            future = self.client.moveOnPathAsync(
-                path,
-                self.speed,
-                timeout_sec=remaining_timeout,
-                drivetrain=self.airsim.DrivetrainType.MaxDegreeOfFreedom,
-                yaw_mode=self.airsim.YawMode(is_rate=False, yaw_or_rate=segment_yaw_deg),
-                lookahead=min(max(self.speed * 0.3, 2.0), 3.0),
-                adaptive_lookahead=0.2,
-            )
-            completed = threading.Event()
-            motion_error: list[BaseException] = []
+        def wait_for_motion() -> None:
+            try:
+                future.join()
+            except BaseException as exc:  # pragma: no cover - depends on RPC failure mode
+                motion_error.append(exc)
+            finally:
+                completed.set()
 
-            def wait_for_motion() -> None:
-                try:
-                    future.join()
-                except BaseException as exc:  # pragma: no cover - depends on RPC failure mode
-                    motion_error.append(exc)
-                finally:
-                    completed.set()
-
-            waiter = threading.Thread(target=wait_for_motion, daemon=True)
-            waiter.start()
-            while not completed.wait(0.1):
-                telemetry_path.append(telemetry_position())
-                try:
-                    collision_samples += int(bool(telemetry_client.simGetCollisionInfo().has_collided))
-                except Exception:
-                    pass
-            waiter.join()
+        waiter = threading.Thread(target=wait_for_motion, daemon=True)
+        waiter.start()
+        while not completed.wait(0.05):
             telemetry_path.append(telemetry_position())
-            if motion_error:
-                raise RuntimeError("AirSim moveOnPath failed") from motion_error[0]
-            if l2(telemetry_path[-1], segment_targets[-1]) > max(self.speed, 5.0):
-                failed_segment = segment_index
-                break
-            if time.perf_counter() >= deadline:
-                failed_segment = segment_index
-                break
+            try:
+                collision_samples += int(bool(telemetry_client.simGetCollisionInfo().has_collided))
+            except Exception:
+                pass
+        waiter.join()
+        final_position = telemetry_position()
+        telemetry_path.append(final_position)
+        if motion_error:
+            raise RuntimeError("AirSim moveOnPath failed") from motion_error[0]
+
+        endpoint_error_m = l2(final_position, waypoints[-1])
+        path_follow_failed = endpoint_error_m > max(self.speed, 5.0)
         if self.settle_sec > 0.0:
             time.sleep(self.settle_sec)
         return {
             "waypoint_count": len(waypoints),
             "control_mode": "move_on_path",
+            "path_api": "moveOnPathAsync",
             "speed_mps": self.speed,
-            "segment_count": len(chunks),
-            "segment_yaws_deg": segment_yaws,
-            "failed_segment": failed_segment,
+            "drivetrain": "ForwardOnly",
+            "lookahead": 3.0,
+            "adaptive_lookahead": 1.0,
+            "segment_count": 1,
+            "failed_segment": 0 if path_follow_failed else None,
+            "endpoint_error_m": endpoint_error_m,
             "telemetry_path": telemetry_path,
             "collision_samples": collision_samples,
         }

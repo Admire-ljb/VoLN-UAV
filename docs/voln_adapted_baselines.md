@@ -114,7 +114,8 @@ to a simulator running on another machine.
 The release evaluation configs use the same paper protocol as VoLN-MLLM: at most 128 decisions, a 4 m three-dimensional goal region, and SR/SPL counted only when the policy explicitly stops inside the region. Each `planner_best.pt` stores the stop threshold calibrated on Validation-Seen.
 
 All AirSim methods inherit `configs/airsim_active_beacon_protocol.yaml`.
-They strictly consume the immutable `task_beacons` list stored in each
-episode. Reference routes below 300 m use 3 active beacons, routes from 300 m
-to below 450 m use 4, and routes of at least 450 m use 5. The target asset is
-placed separately and does not contribute to the active-beacon count.
+Active beacons are generated from reference-route motion with the original
+fixed-count selector. The release configuration uses three active beacons with
+deterministic candidate sampling, spacing checks, and route-based fallback
+positions. The target asset is placed separately and does not contribute to the
+active-beacon count.

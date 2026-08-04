@@ -24,7 +24,7 @@ case "${EVAL_MODE,,}" in
   normal)
     eval_mode_args=(--control-mode move_to_position)
     if [[ "${BASELINE,,}" == "reference" ]]; then
-      eval_mode_args=(--control-mode move_on_path)
+      eval_mode_args=(--control-mode setpose_replay --fast-reset --reference-bootstrap-steps 0)
     fi
     ;;
   fast)

@@ -24,6 +24,9 @@ teleport_hover_after_setpose: true
 teleport_pause_after_setpose: false
 teleport_zero_velocity: true
 reference_bootstrap_steps: 0
+reference_pose_interval_sec: 0.1
+reference_pose_rate_hz: 60.0
+endpoint_hover_sec: 1.0
 move_timeout_sec: 15.0
 settle_sec: 0.05
 connect_timeout_sec: 60.0

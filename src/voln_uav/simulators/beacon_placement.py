@@ -19,6 +19,7 @@ SIGN_ASSET_BASE = {
     "right90": "right_turn",
     "up": "up",
     "down": "down",
+    "here": "here",
 }
 SIGN_ASSET_ALIASES = {
     "left_yaw": ("left_turn", "left"),
@@ -29,7 +30,14 @@ SIGN_ASSET_ALIASES = {
     "right90": ("right_turn", "right"),
     "up": ("up",),
     "down": ("down",),
+    "here": ("here",),
 }
+TURN_SIGN_TAGS = frozenset(
+    {
+        "left_yaw", "left_turn", "left90",
+        "right_yaw", "right_turn", "right90",
+    }
+)
 TARGET_TAG = "target_people"
 BEACON_RENDER_MODES = {"random", "direction", "text"}
 SEMANTIC_SIGN_TAG = {
@@ -192,6 +200,374 @@ def _fallback_indices(num_states: int, count: int, start_margin: int, end_margin
     return [min(hi, max(lo, round((i + 1) * hi / (count + 1)))) for i in range(count)]
 
 
+def _route_turn_events(
+    features: list[dict[str, Any]],
+    onset_delta_deg: float = 0.5,
+    max_straight_gap_m: float = 6.0,
+    terminal_reverse_window_steps: int = 12,
+    terminal_reverse_max_straight_gap_m: float = 30.0,
+) -> list[dict[str, Any]]:
+    """Group heading changes into route-level turns using physical spacing.
+
+    Consecutive same-direction changes form one event. A straight gap longer
+    than max_straight_gap_m separates two turns, independent of frame rate.
+    """
+    events: list[dict[str, Any]] = []
+    active: dict[str, Any] | None = None
+    straight_gap_m = 0.0
+
+    def flush() -> None:
+        nonlocal active, straight_gap_m
+        if active is None:
+            return
+        start = int(active["start"])
+        end = int(active["end"])
+        cumulative_yaw = float(active["d_yaw_deg"])
+        tag, score, reason = _tag_from_motion(cumulative_yaw, 0.0)
+        if tag not in TURN_SIGN_TAGS:
+            active = None
+            straight_gap_m = 0.0
+            return
+        events.append({
+            **features[start],
+            "index": start,
+            "d_yaw_deg": cumulative_yaw,
+            "tag": tag,
+            "score": score,
+            "reason": f"{reason} over route indices {start}-{end}",
+            "turn_start_index": start,
+            "turn_end_index": end,
+        })
+        active = None
+        straight_gap_m = 0.0
+
+    for index in range(1, len(features)):
+        delta = float(features[index].get("d_yaw_deg", 0.0))
+        segment_m = float(features[index].get("ds_m", 0.0))
+        if abs(delta) < float(onset_delta_deg):
+            if active is not None:
+                straight_gap_m += segment_m
+                if straight_gap_m > float(max_straight_gap_m):
+                    flush()
+            continue
+
+        direction = 1 if delta > 0.0 else -1
+        if (
+            active is None
+            or int(active["direction"]) != direction
+            or straight_gap_m > float(max_straight_gap_m)
+        ):
+            flush()
+            active = {
+                "direction": direction,
+                "start": index,
+                "end": index,
+                "d_yaw_deg": delta,
+            }
+        else:
+            active["end"] = index
+            active["d_yaw_deg"] = float(active["d_yaw_deg"]) + delta
+        straight_gap_m = 0.0
+
+    flush()
+    return _merge_terminal_reversing_turn_events(
+        events,
+        features,
+        onset_delta_deg=float(onset_delta_deg),
+        window_steps=int(terminal_reverse_window_steps),
+        max_straight_gap_m=float(terminal_reverse_max_straight_gap_m),
+    )
+
+
+def _merge_terminal_reversing_turn_events(
+    events: list[dict[str, Any]],
+    features: list[dict[str, Any]],
+    onset_delta_deg: float,
+    window_steps: int,
+    max_straight_gap_m: float,
+) -> list[dict[str, Any]]:
+    """Merge a reversing terminal fragment using its signed net yaw.
+
+    Small opposite corrections near the goal should not create contradictory
+    signs. Direction follows the signed sum and the sign class follows its
+    absolute magnitude. A fully cancelled fragment emits no turn sign.
+    """
+    if len(features) < 3 or int(window_steps) < 2:
+        return events
+
+    lower_bound = max(1, len(features) - int(window_steps))
+    significant_indices: list[int] = []
+    straight_gap_m = 0.0
+    for index in range(len(features) - 1, lower_bound - 1, -1):
+        delta = float(features[index].get("d_yaw_deg", 0.0))
+        if abs(delta) >= float(onset_delta_deg):
+            significant_indices.append(index)
+            straight_gap_m = 0.0
+            continue
+        straight_gap_m += float(features[index].get("ds_m", 0.0))
+        if straight_gap_m > float(max_straight_gap_m):
+            if not significant_indices:
+                return events
+            break
+
+    if len(significant_indices) < 2:
+        return events
+    significant_indices.sort()
+    directions = [
+        1 if float(features[index]["d_yaw_deg"]) > 0.0 else -1
+        for index in significant_indices
+    ]
+    reversal_count = sum(
+        first != second for first, second in zip(directions, directions[1:])
+    )
+    if reversal_count <= 0:
+        return events
+
+    start = significant_indices[0]
+    end = significant_indices[-1]
+    net_yaw_deg = sum(
+        float(features[index].get("d_yaw_deg", 0.0))
+        for index in range(start, end + 1)
+    )
+    absolute_yaw_deg = sum(
+        abs(float(features[index].get("d_yaw_deg", 0.0)))
+        for index in range(start, end + 1)
+    )
+    remaining = [
+        event
+        for event in events
+        if int(event.get("turn_end_index", event["index"])) < start
+        or int(event.get("turn_start_index", event["index"])) > end
+    ]
+    tag, score, reason = _tag_from_motion(net_yaw_deg, 0.0)
+    if tag in TURN_SIGN_TAGS:
+        remaining.append(
+            {
+                **features[start],
+                "index": start,
+                "d_yaw_deg": net_yaw_deg,
+                "tag": tag,
+                "score": score,
+                "reason": f"{reason} net over reversing terminal route indices {start}-{end}",
+                "turn_start_index": start,
+                "turn_end_index": end,
+                "terminal_reverse_count": reversal_count,
+                "terminal_absolute_yaw_deg": absolute_yaw_deg,
+            }
+        )
+    remaining.sort(key=lambda item: int(item["index"]))
+    return remaining
+
+
+def _route_warning_anchor_before_index(
+    features: list[dict[str, Any]],
+    turn_index: int,
+    warning_distance_m: float,
+) -> tuple[int, list[float], float]:
+    """Find the incoming-route point a fixed horizontal distance before a turn."""
+    index = min(max(int(turn_index), 0), len(features) - 1)
+    target_distance = max(float(warning_distance_m), 0.0)
+    if target_distance <= 0.0 or index <= 0:
+        feature = features[index]
+        return index, list(feature["position"]), float(feature["yaw_deg"])
+
+    origin = [float(value) for value in features[index]["position"]]
+    final_backward_direction: list[float] | None = None
+    final_yaw_deg = float(features[index]["yaw_deg"])
+    for current_index in range(index, 0, -1):
+        current = [float(value) for value in features[current_index]["position"]]
+        previous = [
+            float(value) for value in features[current_index - 1]["position"]
+        ]
+        dx = previous[0] - current[0]
+        dy = previous[1] - current[1]
+        segment_sq = dx * dx + dy * dy
+        if segment_sq <= 1e-12:
+            continue
+        segment = math.sqrt(segment_sq)
+        final_backward_direction = [
+            dx / segment,
+            dy / segment,
+        ]
+        final_yaw_deg = yaw_to_target_deg(previous, current)
+
+        relative_x = current[0] - origin[0]
+        relative_y = current[1] - origin[1]
+        quadratic_b = 2.0 * (relative_x * dx + relative_y * dy)
+        quadratic_c = (
+            relative_x * relative_x
+            + relative_y * relative_y
+            - target_distance * target_distance
+        )
+        discriminant = quadratic_b * quadratic_b - 4.0 * segment_sq * quadratic_c
+        if discriminant < -1e-9:
+            continue
+        root = math.sqrt(max(discriminant, 0.0))
+        ratios = sorted(
+            ratio
+            for ratio in (
+                (-quadratic_b - root) / (2.0 * segment_sq),
+                (-quadratic_b + root) / (2.0 * segment_sq),
+            )
+            if ratio > 1e-9 and ratio <= 1.0 + 1e-9
+        )
+        if ratios:
+            ratio = min(ratios[0], 1.0)
+            anchor = [
+                current[axis] + ratio * (previous[axis] - current[axis])
+                for axis in range(3)
+            ]
+            return current_index - 1, anchor, final_yaw_deg
+
+    first = features[0]
+    if final_backward_direction is None:
+        return 0, list(first["position"]), float(first["yaw_deg"])
+    relative_x = float(first["position"][0]) - origin[0]
+    relative_y = float(first["position"][1]) - origin[1]
+    projection = (
+        relative_x * final_backward_direction[0]
+        + relative_y * final_backward_direction[1]
+    )
+    quadratic_c = (
+        relative_x * relative_x
+        + relative_y * relative_y
+        - target_distance * target_distance
+    )
+    discriminant = max(projection * projection - quadratic_c, 0.0)
+    forward_roots = [
+        distance
+        for distance in (
+            -projection - math.sqrt(discriminant),
+            -projection + math.sqrt(discriminant),
+        )
+        if distance >= 0.0
+    ]
+    extension = min(forward_roots) if forward_roots else 0.0
+    anchor = [
+        float(first["position"][0]) + extension * final_backward_direction[0],
+        float(first["position"][1]) + extension * final_backward_direction[1],
+        float(first["position"][2]),
+    ]
+    return 0, anchor, final_yaw_deg
+
+
+def _route_anchor_after_index(
+    features: list[dict[str, Any]],
+    turn_index: int,
+    after_distance_m: float,
+) -> tuple[int, list[float], float]:
+    """Find the first route point a fixed horizontal distance after a turn."""
+    index = min(max(int(turn_index), 0), len(features) - 1)
+    target_distance = max(float(after_distance_m), 0.0)
+    if target_distance <= 0.0 or index >= len(features) - 1:
+        feature = features[index]
+        return index, list(feature["position"]), float(feature["yaw_deg"])
+
+    origin = [float(value) for value in features[index]["position"]]
+    final_direction: list[float] | None = None
+    final_yaw_deg = float(features[index]["yaw_deg"])
+    for current_index in range(index, len(features) - 1):
+        current = [float(value) for value in features[current_index]["position"]]
+        following = [
+            float(value) for value in features[current_index + 1]["position"]
+        ]
+        dx = following[0] - current[0]
+        dy = following[1] - current[1]
+        segment_sq = dx * dx + dy * dy
+        if segment_sq <= 1e-12:
+            continue
+        segment = math.sqrt(segment_sq)
+        final_direction = [dx / segment, dy / segment]
+        final_yaw_deg = yaw_to_target_deg(current, following)
+
+        relative_x = current[0] - origin[0]
+        relative_y = current[1] - origin[1]
+        quadratic_b = 2.0 * (relative_x * dx + relative_y * dy)
+        quadratic_c = (
+            relative_x * relative_x
+            + relative_y * relative_y
+            - target_distance * target_distance
+        )
+        discriminant = quadratic_b * quadratic_b - 4.0 * segment_sq * quadratic_c
+        if discriminant < -1e-9:
+            continue
+        root = math.sqrt(max(discriminant, 0.0))
+        ratios = sorted(
+            ratio
+            for ratio in (
+                (-quadratic_b - root) / (2.0 * segment_sq),
+                (-quadratic_b + root) / (2.0 * segment_sq),
+            )
+            if ratio > 1e-9 and ratio <= 1.0 + 1e-9
+        )
+        if ratios:
+            ratio = min(ratios[0], 1.0)
+            anchor = [
+                current[axis] + ratio * (following[axis] - current[axis])
+                for axis in range(3)
+            ]
+            return current_index, anchor, final_yaw_deg
+
+    last = features[-1]
+    if final_direction is None:
+        return len(features) - 1, list(last["position"]), float(last["yaw_deg"])
+    relative_x = float(last["position"][0]) - origin[0]
+    relative_y = float(last["position"][1]) - origin[1]
+    projection = (
+        relative_x * final_direction[0]
+        + relative_y * final_direction[1]
+    )
+    quadratic_c = (
+        relative_x * relative_x
+        + relative_y * relative_y
+        - target_distance * target_distance
+    )
+    discriminant = max(projection * projection - quadratic_c, 0.0)
+    forward_roots = [
+        distance
+        for distance in (
+            -projection - math.sqrt(discriminant),
+            -projection + math.sqrt(discriminant),
+        )
+        if distance >= 0.0
+    ]
+    extension = min(forward_roots) if forward_roots else 0.0
+    anchor = [
+        float(last["position"][0]) + extension * final_direction[0],
+        float(last["position"][1]) + extension * final_direction[1],
+        float(last["position"][2]),
+    ]
+    return len(features) - 1, anchor, final_yaw_deg
+
+
+def _turn_direction_offset_anchor(
+    features: list[dict[str, Any]],
+    item: dict[str, Any],
+    signed_distance_m: float,
+) -> tuple[int, list[float], float]:
+    """Offset from a turn pivot along the incoming flight direction."""
+    start = min(max(int(item["index"]), 0), len(features) - 1)
+    end = min(
+        max(int(item.get("turn_end_index", start)), start),
+        len(features) - 1,
+    )
+    pivot = max(
+        range(start, end + 1),
+        key=lambda index: abs(float(features[index].get("d_yaw_deg", 0.0))),
+    )
+    direction_reference_index = max(start - 1, 0)
+    direction_yaw_deg = float(features[direction_reference_index]["yaw_deg"])
+    direction_yaw_rad = math.radians(direction_yaw_deg)
+    origin = [float(value) for value in features[pivot]["position"]]
+    distance = float(signed_distance_m)
+    anchor = [
+        origin[0] + distance * math.cos(direction_yaw_rad),
+        origin[1] + distance * math.sin(direction_yaw_rad),
+        origin[2],
+    ]
+    return pivot, anchor, direction_yaw_deg
+
+
 def _task_beacon_tag(
     beacon: dict[str, Any],
     feature: dict[str, Any],
@@ -275,6 +651,7 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     rng = random.Random(seed)
 
     features = route_motion_features(states)
+    straight_tag = str(cfg.get("straight_tag", "here"))
     source = str(cfg.get("source", "generated_from_route"))
     if source == "episode_task_beacons":
         selected = _features_from_episode_task_beacons(episode, cfg, features)
@@ -295,16 +672,38 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
         min_gap = int(
             cfg.get("min_gap_steps", max(2, len(states) // max(count + 2, 3)))
         )
-        candidates = [
+        motion_candidates = [
             item
             for item in features[
                 start_margin : max(start_margin, len(features) - end_margin)
             ]
             if item["tag"] in allowed_tags and item["score"] > 0.0
         ]
-        candidates.sort(key=lambda item: (-float(item["score"]), int(item["index"])))
-        pool = candidates[: max(count * 4, count)]
-        rng.shuffle(pool)
+        turn_candidates = [
+            item
+            for item in _route_turn_events(
+                features,
+                float(cfg.get("turn_onset_delta_deg", 0.5)),
+                float(cfg.get("turn_merge_straight_gap_m", 6.0)),
+                int(cfg.get("terminal_reverse_turn_window_steps", 12)),
+                float(cfg.get("terminal_reverse_turn_max_straight_gap_m", 30.0)),
+            )
+            if int(item["index"]) >= start_margin and item["tag"] in allowed_tags
+        ]
+        other_candidates = [
+            item for item in motion_candidates if item["tag"] not in TURN_SIGN_TAGS
+        ]
+        candidate_key = lambda item: (
+            -float(item["score"]),
+            int(item["index"]),
+        )
+        turn_candidates.sort(key=candidate_key)
+        other_candidates.sort(key=candidate_key)
+        pool_limit = max(count * 4, count)
+        turn_pool = turn_candidates[:pool_limit]
+        other_pool = other_candidates[:pool_limit]
+        rng.shuffle(other_pool)
+        pool = turn_pool + other_pool
 
         selected = []
         selected_indices: list[int] = []
@@ -315,32 +714,19 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 selected.append(item)
                 selected_indices.append(int(item["index"]))
 
-        straight_tag = str(cfg.get("straight_tag", "up"))
-        can_place_straight = straight_tag in allowed_tags
-        for idx in _fallback_indices(len(states), count, start_margin, end_margin):
-            if len(selected) >= count:
-                break
-            if not _far_enough(idx, selected_indices, min_gap):
-                continue
-            feat = features[idx]
-            tag = feat.get("tag") if feat.get("tag") in allowed_tags else None
-            if tag is None:
-                if not can_place_straight:
-                    continue
-                tag = straight_tag
+        # Do not manufacture three directional cues on an instruction-free
+        # straight route. Keep one terminal HERE marker instead.
+        if not selected and count > 0 and straight_tag in allowed_tags:
+            terminal = features[-1]
             selected.append(
                 {
-                    **feat,
-                    "tag": tag,
-                    "score": float(feat.get("score", 0.0)),
-                    "reason": (
-                        "straight route"
-                        if tag == straight_tag
-                        else str(feat.get("reason", "route cue"))
-                    ),
+                    **terminal,
+                    "tag": straight_tag,
+                    "score": 0.0,
+                    "reason": "end of straight route",
                 }
             )
-            selected_indices.append(idx)
+
     else:
         raise ValueError(
             "beacon_placement.source must be 'episode_task_beacons' or "
@@ -354,6 +740,8 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     ground_z_by_scene = dict(cfg.get("ground_z_ned_by_scene", {}) or {})
     ground_z_value = ground_z_by_scene.get(scene_id, cfg.get("ground_z_ned"))
     ground_z_ned = float(ground_z_value) if ground_z_value is not None else None
+    vertical_offset_by_scene = dict(cfg.get("vertical_ned_offset_by_scene", {}) or {})
+    scene_vertical_offset = vertical_offset_by_scene.get(scene_id)
     lateral_lo, lateral_hi = preset.get("lateral", (-7.0, -3.0))
     lookback_steps = int(cfg.get("lookback_steps", 2))
     distance_jitter = float(cfg.get("distance_jitter_m", 3.0))
@@ -361,22 +749,49 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     placements: list[dict[str, Any]] = []
     for order, item in enumerate(selected):
         idx = int(item["index"])
-        ref_idx = max(0, idx - lookback_steps)
-        ref = features[ref_idx]
-        forward = float(preset.get("distance", 45.0)) + rng.uniform(-distance_jitter, distance_jitter)
+        tag = str(item["tag"])
+        turn_warning_distance_m = 0.0
+        if tag in TURN_SIGN_TAGS:
+            turn_warning_distance_m = float(cfg.get("turn_warning_distance_m", 30.0))
+            ref_idx, anchor_position, anchor_yaw_deg = _turn_direction_offset_anchor(
+                features, item, turn_warning_distance_m
+            )
+            forward = float(cfg.get("turn_forward_m", 0.0))
+            yaw_add_deg = float(cfg.get("turn_yaw_add_deg", 90.0))
+        elif tag == straight_tag:
+            ref_idx = idx
+            ref = features[ref_idx]
+            anchor_position = list(ref["position"])
+            anchor_yaw_deg = float(ref["yaw_deg"])
+            forward = float(cfg.get("here_forward_m", 0.0))
+            yaw_add_deg = float(cfg.get("yaw_add_deg", 90.0))
+        else:
+            ref_idx = max(0, idx - lookback_steps)
+            ref = features[ref_idx]
+            anchor_position = list(ref["position"])
+            anchor_yaw_deg = float(ref["yaw_deg"])
+            forward = (
+                float(preset.get("distance", 45.0))
+                + rng.uniform(-distance_jitter, distance_jitter)
+            )
+            yaw_add_deg = float(cfg.get("yaw_add_deg", 90.0))
         lateral = rng.uniform(float(lateral_lo), float(lateral_hi))
         vertical_ned_m = (
-            ground_z_ned - float(ref["position"][2])
+            ground_z_ned - float(anchor_position[2])
             if ground_z_ned is not None
-            else float(preset.get("vertical_ned", 10.0))
+            else float(
+                scene_vertical_offset
+                if scene_vertical_offset is not None
+                else preset.get("vertical_ned", 10.0)
+            )
         )
         pose = pose_from_path_point(
-            position=ref["position"],
-            yaw_deg=float(ref["yaw_deg"]),
+            position=anchor_position,
+            yaw_deg=anchor_yaw_deg,
             forward_m=forward,
             lateral_m=lateral,
             vertical_ned_m=vertical_ned_m,
-            yaw_add_deg=float(cfg.get("yaw_add_deg", 90.0)),
+            yaw_add_deg=yaw_add_deg,
         )
         placements.append(
             {
@@ -387,6 +802,15 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "tag": item["tag"],
                 "reason": item.get("reason", "route cue"),
                 "forward_m": forward,
+                "turn_total_yaw_deg": float(item.get("d_yaw_deg", 0.0)),
+                "terminal_reverse_count": int(item.get("terminal_reverse_count", 0)),
+                "terminal_absolute_yaw_deg": float(item.get("terminal_absolute_yaw_deg", 0.0)),
+                "turn_warning_distance_m": turn_warning_distance_m,
+                "turn_event_end_index": int(item.get("turn_end_index", idx)),
+                "route_anchor_position": anchor_position,
+                "turn_pivot_index": ref_idx,
+                "turn_direction_reference_index": max(idx - 1, 0),
+                "turn_direction_yaw_deg": anchor_yaw_deg,
                 "lateral_m": lateral,
                 "vertical_ned_m": vertical_ned_m,
                 **(
@@ -406,10 +830,13 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
     if include_target:
         target_idx = len(states) - 1
         target_ref = features[target_idx]
+        target_state = states[target_idx]
+        target_direction_source = "recorded_final_yaw" if "yaw" in target_state else "route_heading_fallback"
+        target_yaw_deg = state_yaw_deg(states, target_idx)
         target_vertical_ned_m = float(cfg.get("target_vertical_ned_m", 0.0))
         target_pose = pose_from_path_point(
             position=target_ref["position"],
-            yaw_deg=float(target_ref["yaw_deg"]),
+            yaw_deg=target_yaw_deg,
             forward_m=float(cfg.get("target_distance_m", 0.0)),
             lateral_m=float(cfg.get("target_lateral_m", 0.0)),
             vertical_ned_m=target_vertical_ned_m,
@@ -426,6 +853,8 @@ def plan_route_beacons(episode: dict[str, Any], config: dict[str, Any] | None = 
                 "forward_m": float(cfg.get("target_distance_m", 0.0)),
                 "lateral_m": float(cfg.get("target_lateral_m", 0.0)),
                 "vertical_ned_m": target_vertical_ned_m,
+                "target_direction_source": target_direction_source,
+                "target_direction_yaw_deg": target_yaw_deg,
                 **target_pose,
             }
         )

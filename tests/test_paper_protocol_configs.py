@@ -106,7 +106,7 @@ def test_online_controller_defaults_are_explicit():
         assert _load(name)["controller"] == "policy", name
 
 
-def test_all_online_methods_share_episode_level_active_beacon_protocol():
+def test_all_online_methods_share_route_generated_active_beacon_protocol():
     names = [
         "eval_airsim_dataset_release.yaml",
         "eval_airsim_seq2seq_dataset_release.yaml",
@@ -120,17 +120,20 @@ def test_all_online_methods_share_episode_level_active_beacon_protocol():
     configs = {name: _load(name) for name in names}
     expected = configs[names[0]]["beacon_placement"]
 
-    assert expected["source"] == "episode_task_beacons"
+    assert expected["source"] == "generated_from_route"
     assert expected["render_mode"] == "direction"
-    assert expected["count_by_path_length"] == {
-        "easy_lt_m": 300.0,
-        "normal_lt_m": 450.0,
-        "easy": 3,
-        "normal": 4,
-        "hard": 5,
-    }
-    assert "count" not in expected
+    assert expected["count"] == 3
+    assert "count_by_difficulty" not in expected
     assert "route_beacons_per_episode" not in expected
+    assert expected["straight_tag"] == "here"
+    assert expected["turn_onset_delta_deg"] == 0.5
+    assert expected["turn_merge_straight_gap_m"] == 6.0
+    assert expected["turn_warning_distance_m"] == 30.0
+    assert expected["turn_forward_m"] == 0.0
+    assert expected["turn_yaw_add_deg"] == 90.0
+    assert expected["here_forward_m"] == 0.0
+    assert expected["ground_z_ned_by_scene"]["BrushifyUrban"] == 2.0
+    assert expected["vertical_ned_offset_by_scene"]["BrushifyCountryRoads"] == 12.0
     for name, config in configs.items():
         assert config["beacon_placement"] == expected, name
 

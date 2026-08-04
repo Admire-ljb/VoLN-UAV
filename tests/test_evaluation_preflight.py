@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from voln_uav.evaluation.airsim_loop import (
+    active_beacon_readiness_issues,
     check_airsim_readiness,
-    episode_task_beacon_readiness_issues,
     filter_airsim_episodes,
 )
 
@@ -41,19 +41,16 @@ def test_manual_airsim_preflight_accepts_single_scene_selection(monkeypatch) -> 
     assert issues == []
 
 
-def test_online_preflight_rejects_generated_method_specific_beacons() -> None:
-    issues = episode_task_beacon_readiness_issues(
+def test_online_preflight_accepts_shared_route_generated_beacons() -> None:
+    issues = active_beacon_readiness_issues(
         {
             "beacon_placement": {
                 "enabled": True,
                 "source": "generated_from_route",
-                "count": 4,
+                "count": 3,
             }
         },
-        [],
+        _episodes(),
     )
 
-    assert issues == [
-        "AirSim online evaluation requires "
-        "beacon_placement.source=episode_task_beacons"
-    ]
+    assert issues == []
